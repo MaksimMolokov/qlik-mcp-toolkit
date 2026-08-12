@@ -40,7 +40,7 @@ stdio-соединения на новый бинарник — до этого 
   схемой текущей сессии).
 - `scripts/app_cache.py` — постоянный (не per-беседа) кэш семантики
   приложения по `app_id`+`reload_fingerprint` в
-  `D:\Claude\Work\MCP qlik\app-cache.json`. Проверяй его ПЕРЕД
+  `$QLIK_MCP_TOOLKIT_HOME/app-cache.json` (по умолчанию `~/.qlik-mcp-toolkit/`). Проверяй его ПЕРЕД
   `get_app_script`/`get_app_sheets`/`get_app_object` — это десятки тысяч
   символов контекста за раз, не читай их заново, если кэш свежий.
 

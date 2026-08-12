@@ -1,6 +1,6 @@
 # Схема хранилища сессии
 
-Файл: `D:\Claude\Work\MCP qlik\work\qlik-mcp-session-context.json`.
+Файл: `$QLIK_MCP_TOOLKIT_HOME/session-context.json` (по умолчанию `~/.qlik-mcp-toolkit/`).
 
 Корень: `schema_version`, `session_key`, `updated_at`, `active_result_key`,
 `apps`, `queries`, `derivations`.
