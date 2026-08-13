@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0
+
+- fix: добавлен `.cursor-plugin/marketplace.json` — без него Dashboard ->
+  Plugins -> "Import from Repo" в Cursor не распознаёт репозиторий как
+  team-маркетплейс (это отдельный, проприетарный каталожный манифест,
+  не путать с корневым `plugin.json`, который уже соответствует Agent
+  Plugins spec и грузится в Cursor без изменений). `validate.py` теперь
+  проверяет его на обязательные поля и что `source` каждого плагина
+  указывает на реальный `plugin.json`/`.cursor-plugin/plugin.json`.
+  Схема собрана по документации Cursor 13.08.2026, живым импортом в
+  Cursor ЕЩЁ НЕ подтверждена — обновить статус после первого реального
+  Import from Repo.
+
 ## 0.3.0
 
 - fix: `qlik-mcp-session-context/scripts/session_store.py` — `session_key`
