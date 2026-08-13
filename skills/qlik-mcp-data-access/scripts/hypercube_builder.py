@@ -167,6 +167,61 @@ def is_jwt_bootstrap_error(response: dict[str, Any]) -> bool:
     )
 
 
+def quote_field(field: str) -> str:
+    """Wrap a field name for `engine_query`'s `group_by`/`metrics[].field`/
+    `filters[].field` — unlike `engine_create_hypercube`'s
+    `dimensions[].field` (a plain name), these are parsed by Qlik as a bare
+    expression. A multi-word name without brackets fails live with
+    `error_category: invalid_expression` / "Garbage after expression"
+    (confirmed 2026-08-13 on `qlik-sense-mcp-server 2.0.0`,
+    `llm_model_top50_clients`, field `Вид спорта`). Idempotent — already
+    bracketed input is returned unchanged.
+    """
+    field = field.strip()
+    if field.startswith("[") and field.endswith("]"):
+        return field
+    return f"[{field}]"
+
+
+def build_engine_query(
+    app_id: str,
+    *,
+    group_by: list[str] | None = None,
+    metrics: list[dict[str, Any]] | None = None,
+    filters: list[dict[str, Any]] | None = None,
+    sort_by: str | None = None,
+    sort_order: str = "desc",
+    limit: int = 100,
+) -> dict[str, Any]:
+    """Build an `engine_query` request (v2.0.0+, confirmed live 2026-08-13).
+    "Stated rather than written": the server generates its own Set Analysis
+    from `group_by`+`metrics`(`{field, agg, label?}`)+`filters`, no manual
+    expressions. Reach for this FIRST for a plain "how much by what" — fall
+    back to `build_hypercube_request_modern()`/legacy for `Aggr()`, nested
+    aggregation, or custom Set Analysis it cannot state.
+
+    Every `group_by` entry and every `metrics[].field`/`filters[].field` is
+    run through `quote_field()` automatically — callers may pass either bare
+    or already-bracketed names.
+    """
+    request: dict[str, Any] = {"app_id": app_id, "limit": limit}
+    if group_by:
+        request["group_by"] = [quote_field(f) for f in group_by]
+    if metrics:
+        request["metrics"] = [
+            {**m, "field": quote_field(m["field"])} if "field" in m else m for m in metrics
+        ]
+    if filters:
+        request["filters"] = [
+            {**flt, "field": quote_field(flt["field"])} if "field" in flt else flt
+            for flt in filters
+        ]
+    if sort_by:
+        request["sort_by"] = sort_by
+        request["sort_order"] = sort_order
+    return request
+
+
 def build_hypercube_request_modern(
     app_id: str,
     dimensions: list[dict[str, Any]],

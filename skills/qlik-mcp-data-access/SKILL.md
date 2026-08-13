@@ -18,14 +18,15 @@ description: Безопасная read-only обвязка над MCP-серве
 ориентир, но при любом расхождении с реальной схемой вызова доверяй
 реальности, не файлу.
 
-✅ **Переустановлен на официальный `qlik-sense-mcp-server 1.9.0` 11.08.2026**
-(до этого прод-сервер по ошибке ставился из нашего замороженного форка, а
-не PyPI — см. `tool-catalog.md`). Modern-схема `engine_create_hypercube` и
-`comment` в `get_app_details` подтверждены живьём ещё на 1.7.2, актуальны и
-на 1.9.0. **Требуется перезапуск Claude Code** для переустановки
-stdio-соединения на новый бинарник — до этого момента сессия говорит со
-старым процессом. Полные детали 1.9.0 (пока по CHANGELOG, не live) —
-`references/tool-catalog.md`, раздел "Апгрейд до 1.9.0".
+✅ **`qlik-sense-mcp-server 2.0.0` — схема и поведение подтверждены живьём
+13.08.2026** (1.9.0 → 2.0.0 12.08, переустановка + перезапуск Claude Code,
+живая проверка на следующий день). Modern-схема `engine_create_hypercube`
+(`sort_by`/`sort_order`/`limit` на верхнем уровне) и `comment` в
+`get_app_details` подтверждены живьём ещё на 1.7.2, актуальны и на 2.0.0.
+**Новое в 2.0.0**: инструмент `engine_query` (первый новый tool с 1.7.2,
+предпочтительнее `engine_create_hypercube` для простого «сколько по чему»)
+и `{filter}`-маркер в `engine_create_hypercube` — оба проверены реальными
+вызовами, детали — `references/tool-catalog.md`, раздел "Апгрейд до 2.0.0".
 
 ## Модули
 
@@ -36,8 +37,13 @@ stdio-соединения на новый бинарник — до этого 
   строк / 9900 ячеек), `is_transient_connection_error()`,
   `is_jwt_bootstrap_error()` (второй, отдельный класс сбоя — таймаут JWT-
   бутстрапа, не Engine WS; найден 07.08.2026), `build_hypercube_request_modern()`
-  (modern-схема v1.6.0+, использовать только после подтверждения живой
-  схемой текущей сессии).
+  (modern-схема v1.6.0+, подтверждена живьём, основной путь для
+  `engine_create_hypercube`), `build_engine_query()`/`quote_field()` (v2.0.0+,
+  подтверждены живьём 13.08.2026 — предпочтительнее для простого «сколько по
+  чему»; `quote_field()` оборачивает многословные имена в `[скобки]`,
+  обязательно для `group_by`/`metrics[].field`/`filters[].field` в
+  `engine_query`, чего `engine_create_hypercube.dimensions[].field` не
+  требует).
 - `scripts/app_cache.py` — постоянный (не per-беседа) кэш семантики
   приложения по `app_id`+`reload_fingerprint` в
   `$QLIK_MCP_TOOLKIT_HOME/app-cache.json` (по умолчанию `~/.qlik-mcp-toolkit/`). Проверяй его ПЕРЕД
@@ -77,9 +83,13 @@ JWT-бутстрапе (`error_type: QlikConnectionError`, текст ошибк
 
 - Оцени `check_row_budget()` до отправки — произведение cardinality измерений
   не должно превышать 5000 без сужения через Set Analysis в measure.
-- Ranking/top-N — только `max_rows` + `qSortByExpression` внутри dimension
-  (`build_dimension(field, sort_by_expression=...)`), никакого top-level
-  `sort_by`.
+- Ranking/top-N по значению самой меры/измерения — top-level `sort_by`/
+  `sort_order`/`limit` (`build_hypercube_request_modern()`, подтверждено
+  живьём с 07.08.2026, ОСНОВНОЙ путь). `max_rows` + `qSortByExpression`
+  внутри dimension (`build_dimension(field, sort_by_expression=...)`) —
+  fallback для отката/переустановки сервера без пина версии и для
+  адресной выборки по списку известных ID
+  (`build_id_list_sort_expression()`), где `sort_by` не подходит.
 - Никаких вычисляемых измерений (`=Year(...)`, `=If(...)`) и `If()` внутри
   агрегата — используй готовые календарные поля и Set Analysis.
 - Ответ сервера сам содержит `truncation_warning` с готовой подсказкой при

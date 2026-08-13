@@ -36,7 +36,10 @@ description: Отвечать на бизнес-вопросы по Qlik чер�
    data-запроса.
 8. Для нетривиальной логики — `get_app_variables`; для эталонного графика —
    `get_app_sheets` → `get_app_sheet_objects` → `get_app_object`.
-9. Строй hypercube через `qlik-mcp-data-access/scripts/hypercube_builder.py`.
+9. Простое «сколько/сколько раз, по чему» — `engine_query`
+   (`hypercube_builder.build_engine_query()`, v2.0.0+); `Aggr()`/кастомный
+   Set Analysis/сравнение двух периодов в одной колонке — hypercube через
+   `qlik-mcp-data-access/scripts/hypercube_builder.py`.
 10. При `connection_error` на `CreateSessionObject`/`OpenDoc` — повтори тот
     же вызов до ДВУХ раз, прежде чем сообщать о проблеме (см.
     `references/tool-workflows.md`) — известное поведение Engine (держит

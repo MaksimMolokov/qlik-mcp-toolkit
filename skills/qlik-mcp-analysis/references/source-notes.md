@@ -48,6 +48,31 @@ v1.9.0` на диске, все 12 JSON-схем инструментов про
 `qlik-mcp-data-access/references/tool-catalog.md`, раздел «Апгрейд до
 1.9.0», и память `project_qlik_sense_mcp_reconnect_fix_pending_test`.
 
+✅ **Апгрейд до v2.0.0 — схема и содержательное поведение подтверждены
+живьём 13.08.2026** (`uv tool list` → `qlik-sense-mcp-server v2.0.0` на
+диске; **14 инструментов** в JWT-режиме, не 12/13 — добавились `search_app`
+и `engine_query`). Новый инструмент **`engine_query`** проверен реальным
+batch-вызовом (`llm_model_top50_clients`, 2 независимых запроса за один
+round-trip): `group_by`+`metrics`+`filters`+`sort_by`/`limit` действительно
+сам собирает Set Analysis, `period_check`/`filters_applied` в ответе честно
+показывают реально покрытый период, `warnings` предупреждает, что имя поля
+внутри готового `expression` меры Qlik молча дропнет, если его нет в
+приложении (валидируются только имена, переданные через `filters`/
+`group_by`/`metrics`, не текст выражения). **Готча, которой нет в
+CHANGELOG**: `group_by`/`metrics[].field`/`filters[].field` в `engine_query`
+— это НЕ имя поля напрямую, а Qlik-выражение; многословное имя без
+`[Квадратных скобок]` падает с `Garbage after expression` — всегда оборачивай
+(`hypercube_builder.quote_field()`). `engine_create_hypercube.dimensions[].field`
+это ограничение не касается — там имя поля, а не выражение. Также живьём
+подтверждён новый `{filter}`-маркер в `engine_create_hypercube` (мера
+`Sum({filter} [Поле])` + top-level `filters` — сервер сам подставляет Set
+Analysis и репортит `filters_applied`). Остальные пункты релиза (unknown
+field теперь hard-reject, даты в формате Qlik вместо serial, CSRF-фикс,
+чистка 10 env-переменных) — из CHANGELOG/README апстрима, отдельно прицельно
+не перепроверялись в этом прогоне. Полная история версий и live-протокол —
+`Work\.claude\skills\mcp-qlik\SKILL.md` и
+`qlik-mcp-data-access/references/tool-catalog.md`.
+
 **Всё равно не полагайся на номер версии как единственный источник правды**
 — он может смениться при переустановке/апгрейде вне контроля этого скилла.
 Единственный надёжный источник правды о параметрах КОНКРЕТНОГО вызова —

@@ -2,7 +2,7 @@
 
 Общий дистрибутив qlik-mcp-скиллов (семантика приложения → hypercube →
 валидация → population-lock для уточнений) + пин версии MCP-сервера
-`qlik-sense-mcp-server==1.9.0`. Один и тот же `skills/` читают Claude Code, Cursor и Codex
+`qlik-sense-mcp-server==2.0.0`. Один и тот же `skills/` читают Claude Code, Cursor и Codex
 CLI — расходятся только тонкие манифесты (`.claude-plugin/` для Claude
 Code, корневой `plugin.json`/`mcp.json` для Cursor и Codex, стандарт
 Agent Plugins).
