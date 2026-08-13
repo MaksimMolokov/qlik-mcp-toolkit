@@ -34,7 +34,31 @@ def empty_store(session_key: str | None = None) -> dict[str, Any]:
     }
 
 
-def load(path: Path = DEFAULT_PATH, session_key: str | None = None) -> dict[str, Any]:
+DEFAULT_STALE_AFTER_SECONDS = 2 * 3600  # 2 часа простоя = считать беседу новой
+
+
+def load(
+    path: Path = DEFAULT_PATH,
+    session_key: str | None = None,
+    *,
+    stale_after_seconds: float = DEFAULT_STALE_AFTER_SECONDS,
+) -> dict[str, Any]:
+    """Load the store, auto-resetting it when it can't be trusted as "this
+    conversation"'s context.
+
+    `session_key` alone does NOT provide isolation in practice — nothing in
+    this skill's calling code (`qlik-mcp-analysis`) ever passes a real,
+    conversation-unique value, so it is always `None` and the equality check
+    below never fires. Found live 2026-08-13: without a second guard, the
+    file is a single global store shared by every Claude Code conversation
+    ever run, forever — a stale population from an unrelated past
+    conversation could silently answer a new one's follow-up. The
+    `stale_after_seconds` age check (default 2h, keyed off `updated_at`) is
+    the actual isolation mechanism: any store not touched within that window
+    is treated as belonging to a different session and discarded. Pass
+    `stale_after_seconds=0` only for tests that need to inspect an old store
+    as-is.
+    """
     if not path.exists():
         return empty_store(session_key)
     value = json.loads(path.read_text(encoding="utf-8"))
@@ -43,6 +67,14 @@ def load(path: Path = DEFAULT_PATH, session_key: str | None = None) -> dict[str,
     stored_key = value.get("session_key")
     if session_key and stored_key and stored_key != session_key:
         return empty_store(session_key)
+    updated_at = value.get("updated_at")
+    if updated_at and stale_after_seconds > 0:
+        try:
+            age_seconds = (datetime.now(timezone.utc) - datetime.fromisoformat(updated_at)).total_seconds()
+        except ValueError:
+            age_seconds = None
+        if age_seconds is not None and age_seconds > stale_after_seconds:
+            return empty_store(session_key)
     for key, fallback in (("apps", {}), ("queries", {}), ("derivations", [])):
         value.setdefault(key, fallback)
     value.setdefault("active_result_key", None)
