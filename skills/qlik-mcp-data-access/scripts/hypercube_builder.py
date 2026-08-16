@@ -90,18 +90,30 @@ def build_id_list_sort_expression(field: str, ids: list[Any]) -> dict[str, Any]:
         )
     clause = set_analysis_clause(field, ids)
     expr = f"Count({clause} [{field}])"
-    return {"field": field, "sort_by": {"qSortByExpression": -1, "qExpression": expr}}
+    return {"field": quote_field(field), "sort_by": {"qSortByExpression": -1, "qExpression": expr}}
 
 
 def build_dimension(field: str, *, sort_by_expression: str | None = None) -> dict[str, Any]:
     """Build a `dimensions[]` entry. Never pass a calculated dimension
-    (`=Year(...)`, `=If(...)`) — only a real plain field name."""
+    (`=Year(...)`, `=If(...)`) — only a real plain field name.
+
+    `field` is run through `quote_field()` — as of `qlik-sense-mcp-server
+    2.0.2` (confirmed live 2026-08-16), `engine_create_hypercube`'s
+    `dimensions[].field` is ALSO parsed as an expression, same as
+    `engine_query`'s `group_by`. A multi-word name without brackets fails
+    hard with `error_category: invalid_expression` (`failed_step: validate`)
+    — this used to silently collapse the dimension into one bogus group
+    instead (observed on an earlier server version), so the old "brackets
+    not required here" note in `references/tool-catalog.md` no longer
+    holds. Bracketing a single-word name is harmless, so it's applied
+    unconditionally rather than only when a space is present.
+    """
     if field.startswith("="):
         raise ValueError(
             "вычисляемое измерение запрещено (ломает кэш модели / row-level scan) — "
             "используй готовое поле календаря/модели"
         )
-    entry: dict[str, Any] = {"field": field}
+    entry: dict[str, Any] = {"field": quote_field(field)}
     if sort_by_expression:
         entry["sort_by"] = {"qSortByExpression": -1, "qExpression": sort_by_expression}
     return entry
@@ -169,13 +181,15 @@ def is_jwt_bootstrap_error(response: dict[str, Any]) -> bool:
 
 def quote_field(field: str) -> str:
     """Wrap a field name for `engine_query`'s `group_by`/`metrics[].field`/
-    `filters[].field` — unlike `engine_create_hypercube`'s
-    `dimensions[].field` (a plain name), these are parsed by Qlik as a bare
-    expression. A multi-word name without brackets fails live with
-    `error_category: invalid_expression` / "Garbage after expression"
-    (confirmed 2026-08-13 on `qlik-sense-mcp-server 2.0.0`,
-    `llm_model_top50_clients`, field `Вид спорта`). Idempotent — already
-    bracketed input is returned unchanged.
+    `filters[].field` AND for `engine_create_hypercube`'s
+    `dimensions[].field` — all three are parsed by Qlik as a bare
+    expression, not looked up as a plain field name. A multi-word name
+    without brackets fails live with `error_category: invalid_expression` /
+    "Garbage after expression" (confirmed 2026-08-13 on
+    `qlik-sense-mcp-server 2.0.0`, `llm_model_top50_clients`, field `Вид
+    спорта`; the `engine_create_hypercube` case re-confirmed 2026-08-16 on
+    2.0.2, field `Номер клиента` — see `references/tool-catalog.md`).
+    Idempotent — already bracketed input is returned unchanged.
     """
     field = field.strip()
     if field.startswith("[") and field.endswith("]"):
@@ -231,6 +245,8 @@ def build_hypercube_request_modern(
     sort_order: str = "desc",
     limit: int = 1000,
     exclude_null_dimensions: bool = True,
+    offset: int = 0,
+    suppress_zero: bool = False,
 ) -> dict[str, Any]:
     """Build a top-level modern-schema `engine_create_hypercube` request, per
     github.com/bintocher/qlik-sense-mcp README (v1.6.0+): `sort_by` (measure
@@ -255,12 +271,21 @@ def build_hypercube_request_modern(
     `build_id_list_sort_expression()` (legacy Set-Analysis trick) may still
     be needed even on modern — `sort_by` sorts by measure/dimension value,
     not by list membership.
+
+    `offset`/`suppress_zero` reflect the live schema on
+    `qlik-sense-mcp-server 2.0.2` (confirmed 2026-08-16): `offset` pages
+    past already-seen rows for the SAME sort — an out-of-range value is
+    NOT rejected, it just comes back with `returned_rows: 0` and
+    `has_more: false` (no explicit error, confirmed live), so check
+    `returned_rows`/`total_rows` rather than expecting a hard failure.
     """
     request: dict[str, Any] = {
         "app_id": app_id,
         "dimensions": dimensions,
         "measures": measures,
         "limit": limit,
+        "offset": offset,
+        "suppress_zero": suppress_zero,
         "exclude_null_dimensions": exclude_null_dimensions,
     }
     if sort_by:
