@@ -52,7 +52,7 @@ v1.9.0` на диске, все 12 JSON-схем инструментов про
 живьём 13.08.2026** (`uv tool list` → `qlik-sense-mcp-server v2.0.0` на
 диске; **14 инструментов** в JWT-режиме, не 12/13 — добавились `search_app`
 и `engine_query`). Новый инструмент **`engine_query`** проверен реальным
-batch-вызовом (`llm_model_top50_clients`, 2 независимых запроса за один
+batch-вызовом (`<app_name>`, 2 независимых запроса за один
 round-trip): `group_by`+`metrics`+`filters`+`sort_by`/`limit` действительно
 сам собирает Set Analysis, `period_check`/`filters_applied` в ответе честно
 показывают реально покрытый период, `warnings` предупреждает, что имя поля

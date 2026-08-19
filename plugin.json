@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "qlik-mcp-toolkit",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Qlik-скиллы (анализ/hypercube/population-lock) + пин MCP-сервера, для Claude Code"
 }

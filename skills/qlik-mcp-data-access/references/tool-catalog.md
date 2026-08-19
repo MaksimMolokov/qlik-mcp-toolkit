@@ -16,7 +16,7 @@ JWT-режим, Qlik build `31.56.2.0`). Это снимок на дату пр�
 0.5.0) из CHANGELOG апстрима была записана гипотеза: «offset/limit за
 пределами, перевёрнутые границы периода, противоречивые фильтры теперь
 возвращают явную ошибку вместо тихой автокоррекции». **Живой тест
-16.08.2026 на `llm_model_top50_clients` эту гипотезу ОПРОВЕРГ по двум из
+16.08.2026 на `<app_name>` эту гипотезу ОПРОВЕРГ по двум из
 трёх пунктов** — обновить это место, если апстрим поменяет поведение снова:
 
 - **`offset` за пределами total_rows — НЕ ошибка.** `engine_create_hypercube`
@@ -40,7 +40,7 @@ JWT-режим, Qlik build `31.56.2.0`). Это снимок на дату пр�
   after expression: 'клиента'"` — явная ошибка (это УЛУЧШЕНИЕ: на более
   старой версии сервера такое же отсутствие скобок в другом приложении
   тихо схлопывало dimension в одну фиктивную группу вместо ошибки, см.
-  `app-cache.json` → `d3d697f2-60a8-486b-a40a-1e9e77922b81`). С `{"field":
+  `app-cache.json` → `<app_id_2>`). С `{"field":
   "[Номер клиента]"}` запрос прошёл нормально. `hypercube_builder.
   build_dimension()`/`build_id_list_sort_expression()` теперь всегда
   оборачивают field через `quote_field()` — руками больше не нужно.
@@ -63,7 +63,7 @@ JWT-режим, Qlik build `31.56.2.0`). Это снимок на дату пр�
 апстрим добавил и `search_app`, и `engine_query` с 1.7.2).
 
 **Главное изменение — новый инструмент `engine_query`**, проверен реальным
-batch-вызовом на `llm_model_top50_clients` (2 независимых запроса за один
+batch-вызовом на `<app_name>` (2 независимых запроса за один
 round-trip): `group_by` + `metrics` (`{field, agg}`) + `filters`
 (период/диапазон/значение, сервер репортит реально покрытый период через
 `period_check`/`filters_applied`) + `sort_by`/`limit`, без ручных Set
@@ -185,7 +185,7 @@ GitHub уже на v1.7.2 (31 июля). Причина застревания �
 qlik-sense-mcp-server v1.5.1 -> v1.7.2` (пришлось предварительно
 `Stop-Process -Force` 6 зависших процессов, блокировавших файл). После
 перезапуска Claude Code (для переустановки stdio MCP-соединения) — все три
-целевые modern-фичи подтверждены живыми вызовами на `llm_model_top50_clients`,
+целевые modern-фичи подтверждены живыми вызовами на `<app_name>`,
 см. разделы ниже и "Повторная проверка 2026-08-07 (после апгрейда 1.7.2)".
 
 **Практическое следствие: всегда сначала проверяй живую схему конкретного
@@ -199,7 +199,7 @@ qlik-sense-mcp-server v1.5.1 -> v1.7.2` (пришлось предварител
 | `get_about` | Версия/сборка Qlik сервера (QRS `/qrs/about`) | да, ~1.2-5.5с |
 | `get_apps` | Список приложений (QRS), фильтры `name`/`stream`/`published`, пагинация `limit`(cap 50)/`offset` | да, 17-122 в зависимости от запроса |
 | `search_app` | Новый в v2.0.0 (проверить сигнатуру живьём при первом использовании — не тестировался в этом прогоне) | нет |
-| `engine_query` | Новый в v2.0.0 — `group_by`+`metrics`+`filters`+`sort_by`/`limit`+batch `queries`, сервер сам пишет Set Analysis; поля в `group_by`/`metrics[].field`/`filters[].field` — Qlik-выражение, многословные имена нужно оборачивать `[скобками]` (`quote_field()`) | да, 13.08.2026, batch-вызов на `llm_model_top50_clients` |
+| `engine_query` | Новый в v2.0.0 — `group_by`+`metrics`+`filters`+`sort_by`/`limit`+batch `queries`, сервер сам пишет Set Analysis; поля в `group_by`/`metrics[].field`/`filters[].field` — Qlik-выражение, многословные имена нужно оборачивать `[скобками]` (`quote_field()`) | да, 13.08.2026, batch-вызов на `<app_name>` |
 | `get_app_details` | Метаданные + все таблицы/поля/cardinality/is_key (+ `comment` для таблиц в v1.7.2+, НЕ подтверждено live — версия 1.5.1); ОТКРЫВАЕТ приложение | да |
 | `get_app_script` | Полный load script (`qScript`) | да, дорого (десятки тысяч символов) — см. `qlik-mcp-analysis` workflow |
 | `get_app_variables` | Переменные скрипта/UI | не вызывался в этом прогоне |
@@ -257,7 +257,7 @@ dimension (`hypercube_builder.build_dimension(field, sort_by_expression=...)`
 
 ## Modern-схема (v1.6.0+) — ✅ подтверждена live 07.08.2026 на сервере 1.7.2
 
-Прогнан живой запрос на `llm_model_top50_clients` (top-10 по `Оборот` desc):
+Прогнан живой запрос на `<app_name>` (top-10 по `Оборот` desc):
 `sort_by`/`sort_order`/`limit` на верхнем уровне отработали корректно,
 результат (клиенты + значения) идентичен ранее известному legacy-результату
 на той же популяции. Использовать как ОСНОВНУЮ схему теперь можно.
@@ -301,7 +301,7 @@ legacy-приём с `Count({<[Field]={ids}>}...)` в `qSortByExpression` всё
 
 Live-тест дважды на 1.5.1 (04.08 и 07.08) показал НИ ОДНОГО случая `comment`.
 После апгрейда до 1.7.2 (07.08.2026, тот же день, новый вызов) —
-`get_app_details(llm_model_top50_clients)` вернул `comment` практически на
+`get_app_details(<app_name>)` вернул `comment` практически на
 каждом поле (напр. «Номер клиента» → «Номер клиента в игровой системе»,
 «Оборот за отчётный день» → «Сумма ставок клиента за отчётный день в
 рублях»). Подтверждено, feature реальна. Это частично заменяет необходимость
@@ -349,7 +349,7 @@ README про transparent reconnect не подтверждается практ
 
 1. `get_about` — passed, 1.2-3.0с (два вызова).
 2. `get_apps(limit=50)` — passed, 1.6с, вернул 17 приложений.
-3. `get_app_details(llm_model_top50_clients)` — passed, 11.7с, вернул 5 таблиц
+3. `get_app_details(<app_name>)` — passed, 11.7с, вернул 5 таблиц
    / 74 поля, БЕЗ `comment` ни на одном поле/таблице.
 4. `engine_create_hypercube` — 1-я попытка `failed` (183.2с,
    `CreateSessionObject`), повтор `passed` (2.3с).
@@ -378,7 +378,7 @@ csrftoken request failed`, `_ssl.c:1015 handshake timeout`, 47-60с) — см.
 Сервер обновлён (`uv tool upgrade`), Claude Code перезапущен для
 переустановки stdio MCP-соединения. Живой прогон верификационного чек-листа
 (`Work\6. tasks\open\mcp-qlik-1.7.2-upgrade-verification.md`) на
-`llm_model_top50_clients` (`923e8de9-5743-496e-aeae-8b1147fe93c5`):
+`<app_name>` (`<app_id>`):
 
 1. `get_about` — passed, 2.9с, `buildVersion: 31.56.2.0` (Qlik сервер не
    менялся, менялся только MCP-пакет).

@@ -186,7 +186,7 @@ def quote_field(field: str) -> str:
     expression, not looked up as a plain field name. A multi-word name
     without brackets fails live with `error_category: invalid_expression` /
     "Garbage after expression" (confirmed 2026-08-13 on
-    `qlik-sense-mcp-server 2.0.0`, `llm_model_top50_clients`, field `Вид
+    `qlik-sense-mcp-server 2.0.0`, `<app_name>`, field `Вид
     спорта`; the `engine_create_hypercube` case re-confirmed 2026-08-16 on
     2.0.2, field `Номер клиента` — see `references/tool-catalog.md`).
     Idempotent — already bracketed input is returned unchanged.

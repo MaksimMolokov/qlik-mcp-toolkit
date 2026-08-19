@@ -19,7 +19,7 @@ description: Population-lock для уточняющих вопросов к Qli
 хранилище, если последняя запись (`updated_at`) старше 2 часов
 (`DEFAULT_STALE_AFTER_SECONDS`) — считает это уже другой беседой. Не
 подставляй свой `stale_after_seconds`, если не пишешь тест. Живой прогон
-2026-08-13 (`llm_model_top50_clients`, топ-10 → follow-up без нового
+2026-08-13 (`<app_name>`, топ-10 → follow-up без нового
 Qlik-вызова → искусственно состаренная запись → сброс) — все три сценария
 подтверждены, детали в `references/schema.md`.
 
