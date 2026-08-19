@@ -8,7 +8,7 @@
       "name": "qlik-mcp-toolkit",
       "source": {
         "source": "local",
-        "path": "."
+        "path": "./plugins/qlik-mcp-toolkit"
       },
       "policy": {
         "installation": "AVAILABLE",
