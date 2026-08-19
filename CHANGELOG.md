@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.10.0
+
+- fix: живьём (личный + корпоративный Teams-аккаунт, 19.08.2026) "Team
+  Marketplace / Import from Repo" НЕ нашлась в текущем Cursor UI вообще —
+  ни кнопки Import, ни поля под ссылку под "Add". Доки cursor.com,
+  видимо, устарели/расходятся с реальным UI (тот же класс проблемы, что
+  был у Codex в 0.7.0). Вместо неё в README.md — два независимых от плана
+  механизма, найденных через docs.cursor.com напрямую: (1) официальный
+  one-click MCP deeplink (`cursor://anysphere.cursor-deeplink/mcp/install`,
+  cursor.com/docs/mcp/install-links, `cursor_mcp_deeplink()` в
+  bootstrap.py генерирует его из `mcp_servers_block()`); (2) skills —
+  Customize → Rules → Add Rule → "Remote Rule (GitHub)"
+  (cursor.com/docs/skills). Ни один из двух путей НЕ подтверждён живьём
+  (нет доступа к Cursor GUI) — это лучшая находка по докам на сегодня,
+  не гарантия.
+
 ## 0.9.0
 
 - fix: добавлен `.cursor-plugin/plugin.json` на корне репозитория —
