@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.0
+
+- fix: добавлен `.cursor-plugin/plugin.json` на корне репозитория —
+  cursor.com/docs/reference/plugins (сверено 19.08.2026) говорит, что
+  single-plugin репо должен иметь СВОЙ `.cursor-plugin/plugin.json`
+  (name/skills/mcp.json auto-discovered), а `.cursor-plugin/marketplace.json`
+  — только для multi-plugin репо. Раньше был только `marketplace.json`,
+  обёрткой указывающий на корневой Agent-Plugins `plugin.json` — по
+  Codex-прецеденту 19.08.2026 (см. 0.7.0) это ровно тот класс ошибки,
+  который один раз уже сломал распознавание плагина. `marketplace.json`
+  оставлен (докам не противоречит, живьём вреда не подтверждено).
+  MCP-конфиг отдельно объявлять не пришлось — `mcp.json` на корне плагина
+  Cursor "discovers automatically" (та же схема `{mcpServers: {...}}`,
+  что и Claude Code, подтверждено сверкой с `cursor/plugin-template`).
+  ⚠️ Не проверено живьём (нет Cursor-аккаунта с Teams/Enterprise планом
+  под рукой) — доки прямо говорят: "Team marketplaces are available on
+  Teams and Enterprise plans", на Free/Pro Import from Repo недоступен
+  вообще, это не чинится правками в этом репозитории.
+
 ## 0.8.0
 
 - security: репозиторий публичный с момента создания (12.08.2026) —

@@ -1,0 +1,17 @@
+{
+  "name": "qlik-mcp-toolkit",
+  "displayName": "Qlik MCP Toolkit",
+  "version": "0.9.0",
+  "description": "Qlik-скиллы (анализ/hypercube/population-lock) + пин MCP-сервера, для Claude Code",
+  "author": {
+    "name": "MaksimMolokov"
+  },
+  "license": "UNLICENSED",
+  "keywords": [
+    "qlik",
+    "mcp",
+    "hypercube",
+    "analytics"
+  ],
+  "skills": "./skills/"
+}
