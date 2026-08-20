@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.11.0
+
+- fix: `.cursor-plugin/marketplace.json` убран. Источник — официальный
+  `cursor/plugin-template` (github.com/cursor/plugin-template, README
+  сверен 20.08.2026 по прямой просьбе пользователя): для single-plugin
+  репозитория шаблон явно требует держать contents на корне, ОДИН
+  `.cursor-plugin/plugin.json` и убрать `.cursor-plugin/marketplace.json`
+  (тот только для multi-plugin репо). Этот репозиторий — ровно
+  single-plugin (skills/ и mcp.json на корне, не под `plugins/*/`), так
+  что 0.9.0 держал marketplace.json "на всякий случай" ошибочно — теперь
+  правка по прямому указанию из официального шаблона, а не по
+  предположению. `.cursor-plugin/plugin.json` остаётся единственным
+  манифестом Cursor. Не отменяет открытый вопрос 0.10.0 (план
+  Free/Pro/Teams и реальный путь установки в UI) — тот всё ещё не
+  подтверждён живьём.
+
 ## 0.10.0
 
 - fix: живьём (личный + корпоративный Teams-аккаунт, 19.08.2026) "Team

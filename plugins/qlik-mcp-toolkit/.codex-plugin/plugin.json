@@ -1,6 +1,6 @@
 {
   "name": "qlik-mcp-toolkit",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Qlik-скиллы (анализ/hypercube/population-lock) + пин MCP-сервера, для Claude Code",
   "author": {
     "name": "MaksimMolokov"
