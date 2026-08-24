@@ -23,21 +23,17 @@ Agent Plugins spec — живьём проверено 19.08.2026), плюс к�
   в `/plugin` → Marketplaces) подтягивает новые версии сам — руками ничего
   обновлять не нужно. Live-подтверждено 19.08.2026 (`claude mcp list` →
   `qlik: ... - ✔ Connected`).
-- **Cursor**: "Team Marketplace / Import from Repo" (`Dashboard → Plugins`)
-  НЕ нашлась в UI живьём 19.08.2026 ни на личном, ни на корпоративном
-  Teams-аккаунте — доки могли устареть, кнопки "Import" нет, есть только
-  "Add" без поля под ссылку. Рабочая замена, оба пункта per-user, без
-  Team-плана:
-  - **MCP**: один клик — [Add qlik MCP server to Cursor](cursor://anysphere.cursor-deeplink/mcp/install?name=qlik&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyJxbGlrLXNlbnNlLW1jcC1zZXJ2ZXI9PTIuMC4yIiwgIi0tc3RkaW8iXSwgImVudiI6IHsiUUxJS19TRVJWRVJfVVJMIjogIllPVVJfUUxJS19TRVJWRVJfVVJMIiwgIlFMSUtfSldUX1RPS0VOIjogIllPVVJfUUxJS19KV1RfVE9LRU4ifX0=)
-    (официальный deeplink-механизм, cursor.com/docs/mcp/install-links,
-    план не важен). После установки открыть конфиг сервера в Cursor и
-    вписать свои `QLIK_SERVER_URL`/`QLIK_JWT_TOKEN` вместо
-    `YOUR_QLIK_SERVER_URL`/`YOUR_QLIK_JWT_TOKEN`.
-  - **Скиллы**: Customize (боковая панель) → Rules → Add Rule → "Remote
-    Rule (GitHub)" → вставить `https://github.com/MaksimMolokov/qlik-mcp-toolkit`
-    (cursor.com/docs/skills). НЕ живьём подтверждено — если такого пункта
-    нет, искать в доках cursor.com/docs/skills актуальный путь на момент
-    установки, UI меняется быстрее, чем этот README.
+- **Cursor**: один плагин ставит все скиллы и MCP. Клиентам сказать:
+  «Установите `qlik-mcp-toolkit` — склонируйте
+  `https://github.com/MaksimMolokov/qlik-mcp-toolkit` в
+  `~/.cursor/plugins/local/qlik-mcp-toolkit`».
+  Windows: `git clone https://github.com/MaksimMolokov/qlik-mcp-toolkit "%USERPROFILE%\.cursor\plugins\local\qlik-mcp-toolkit"`.
+  Затем перезапустить Cursor, включить плагин и вписать свои
+  `QLIK_SERVER_URL`/`QLIK_JWT_TOKEN` в MCP-сервер `qlik`.
+  После этого агент сразу видит `qlik-mcp-analysis`,
+  `qlik-mcp-data-access` и `qlik-mcp-session-context`.
+  Запасной one-click только для MCP: [Add qlik MCP server](cursor://anysphere.cursor-deeplink/mcp/install?name=qlik&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyJxbGlrLXNlbnNlLW1jcC1zZXJ2ZXI9PTIuMC4yIiwgIi0tc3RkaW8iXSwgImVudiI6IHsiUUxJS19TRVJWRVJfVVJMIjogIllPVVJfUUxJS19TRVJWRVJfVVJMIiwgIlFMSUtfSldUX1RPS0VOIjogIllPVVJfUUxJS19KV1RfVE9LRU4ifX0=)
+  (если плагин ещё не подхватил `mcp.json`).
 - **Codex CLI** (0.140.0+): `codex plugin marketplace add MaksimMolokov/qlik-mcp-toolkit` →
   `codex plugin add qlik-mcp-toolkit@qlik-mcp-toolkit-marketplace`. Ставит
   ТОЛЬКО скиллы — Codex не читает MCP-конфиг из плагина/маркетплейса

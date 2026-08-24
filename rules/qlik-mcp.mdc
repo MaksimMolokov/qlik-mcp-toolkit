@@ -1,0 +1,12 @@
+---
+description: При работе с Qlik через MCP использовать скиллы qlik-mcp-toolkit — анализ, hypercube и population-lock.
+alwaysApply: true
+---
+
+Если доступны инструменты Qlik MCP (`get_apps`, `engine_query`, `engine_create_hypercube` и другие):
+
+1. Следуй скиллу `qlik-mcp-analysis` (семантика приложения → запрос → валидация).
+2. Аргументы hypercube и `engine_query` собирай через `qlik-mcp-data-access`, не выдумывай JSON вручную.
+3. Уточнения «из этих / среди них / предыдущий список» считай через `qlik-mcp-session-context`, не расширяй популяцию обратно на всю базу.
+
+Секреты только из окружения клиента: `QLIK_SERVER_URL`, `QLIK_JWT_TOKEN`.

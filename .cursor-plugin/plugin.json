@@ -1,11 +1,13 @@
 {
   "name": "qlik-mcp-toolkit",
   "displayName": "Qlik MCP Toolkit",
-  "version": "0.11.1",
-  "description": "Qlik-скиллы (анализ/hypercube/population-lock) + пин MCP-сервера, для Claude Code",
+  "version": "0.12.0",
+  "description": "Qlik Sense MCP: анализ, hypercube, population-lock и пин qlik-sense-mcp-server. Один плагин — все скиллы.",
   "author": {
     "name": "MaksimMolokov"
   },
+  "homepage": "https://github.com/MaksimMolokov/qlik-mcp-toolkit",
+  "repository": "https://github.com/MaksimMolokov/qlik-mcp-toolkit",
   "license": "UNLICENSED",
   "keywords": [
     "qlik",
@@ -13,5 +15,12 @@
     "hypercube",
     "analytics"
   ],
-  "skills": "./skills/"
+  "category": "developer-tools",
+  "tags": [
+    "qlik",
+    "mcp",
+    "skills"
+  ],
+  "skills": "./skills/",
+  "rules": "./rules/"
 }

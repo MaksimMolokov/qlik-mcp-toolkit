@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.12.0
+
+- cursor: один плагин ставит все три скилла и пин MCP. Клиентам
+  достаточно клонировать репозиторий в `~/.cursor/plugins/local/qlik-mcp-toolkit`
+  (Windows: `%USERPROFILE%\.cursor\plugins\local\qlik-mcp-toolkit`) и
+  прописать `QLIK_SERVER_URL`/`QLIK_JWT_TOKEN`. Это штатный путь Cursor
+  для локальных плагинов — не зависит от Team Marketplace / Import from Repo.
+- cursor: `.cursor-plugin/plugin.json` дополнен `homepage`/`repository`/
+  `category`/`tags`/`rules` по образцу официального create-plugin.
+  Описание больше не говорит «для Claude Code» — плагин общий.
+- cursor: добавлено `rules/qlik-mcp.mdc` (`alwaysApply: true`) — после
+  установки агент сам берёт qlik-mcp-analysis / data-access / session-context,
+  клиенту не нужно подключать скиллы по одному.
+
 ## 0.11.1
 
 - fix: 0.11.0 сняло `.cursor-plugin/marketplace.json` из
