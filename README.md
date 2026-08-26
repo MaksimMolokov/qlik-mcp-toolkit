@@ -48,6 +48,9 @@ Agent Plugins spec — живьём проверено 19.08.2026), плюс к�
      `~/.cursor/plugins/local/qlik-mcp-toolkit`
      (Windows: `git clone https://github.com/MaksimMolokov/qlik-mcp-toolkit "%USERPROFILE%\.cursor\plugins\local\qlik-mcp-toolkit"`),
      перезапустить Cursor, включить плагин.
+     Дальше плагин обновляется сам: хук `hooks/` при перезапуске Cursor /
+     новом чате агента клонирует или подтягивает этот каталог с GitHub
+     (`origin/main`) и сверяет пин MCP в `~/.cursor/mcp.json` с PyPI.
   У кого сервер `qlik` уже настроен (например, тем же способом, что и для
   Claude Code, или через `mcp-qlik`) — шаг 1 просто пропускается, плагин
   использует то, что уже есть, без повторного ввода токена.

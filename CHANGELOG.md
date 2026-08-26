@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.15.0
+
+- cursor: плагин сам себя обновляет с GitHub. `hooks/hooks.json`
+  (workspaceOpen + sessionStart) клонирует или `git fetch`+`reset --hard`
+  `~/.cursor/plugins/local/qlik-mcp-toolkit` на origin/main и сверяет пин
+  `qlik-sense-mcp-server` в `~/.cursor/mcp.json` с PyPI. Маркетплейсный
+  снимок Cursor не переписывается (клиент его пинит) — хук держит рядом
+  живой клон и отдаёт его в `pluginPaths`. Не проверено живым
+  перезапуском Cursor у клиента после push — статус "живьём подтверждено"
+  не выдаётся.
+
 ## 0.14.0
 
 - feature (по просьбе пользователя 26.08.2026): `qlik-mcp-analysis` теперь

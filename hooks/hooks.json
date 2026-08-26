@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": {
+    "workspaceOpen": [
+      {
+        "command": "./hooks/update-qlik-mcp.cmd",
+        "timeout": 90
+      }
+    ],
+    "sessionStart": [
+      {
+        "command": "./hooks/update-qlik-mcp.cmd",
+        "timeout": 90
+      }
+    ]
+  }
+}
