@@ -48,11 +48,12 @@ Agent Plugins spec — живьём проверено 19.08.2026), плюс к�
      `~/.cursor/plugins/local/qlik-mcp-toolkit`
      (Windows: `git clone https://github.com/MaksimMolokov/qlik-mcp-toolkit "%USERPROFILE%\.cursor\plugins\local\qlik-mcp-toolkit"`),
      перезапустить Cursor, включить плагин.
-     Дальше плагин обновляется сам: хук `hooks/` при перезапуске Cursor /
-     новом чате агента клонирует или подтягивает этот каталог с GitHub
-     (`origin/main`), сверяет пин MCP в `~/.cursor/mcp.json` с PyPI и
-     копирует личные `QLIK_SERVER_URL`/`QLIK_JWT_TOKEN` из этого файла
-     в `.mcp.json` плагина (Cursor сам плейсхолдеры `${QLIK_*}` не резолвит).
+     Дальше плагин выравнивается сам: хук находит новейший снимок
+     маркетплейса в `~/.cursor/plugins/cache`, ставит local-клон на тот же
+     git-коммит (не вперёд GitHub HEAD), отдаёт `pluginPaths` на снимок
+     маркетплейса (не на старый local), копирует хуки снимка в
+     `~/.cursor/hooks`, выравнивает пин MCP и сразу вписывает личные
+     `QLIK_SERVER_URL`/`QLIK_JWT_TOKEN` в `.mcp.json` нового снимка.
   У кого сервер `qlik` уже настроен (например, тем же способом, что и для
   Claude Code, или через `mcp-qlik`) — шаг 1 просто пропускается, плагин
   использует то, что уже есть, без повторного ввода токена.

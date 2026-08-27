@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.18.0
+
+- cursor: хук больше НЕ тянет GitHub HEAD мимо маркетплейса и НЕ отдаёт
+  `pluginPaths` на устаревший local-клон. Источник истины — новейший снимок
+  `%USERPROFILE%\.cursor\plugins\cache\*\qlik-mcp-toolkit\<gitRef>`.
+  Хук выравнивает `plugins/local` на ЭТОТ коммит, `pluginPaths` указывает
+  на снимок маркетплейса, копирует хуки снимка в `~/.cursor/hooks` (без
+  даунгрейда более новой user-hook сборки), выравнивает пин MCP и сразу
+  гоняет env-sync по новому снимку (в том числе на beforeSubmitPrompt,
+  не чаще раза в 60с). Если маркетплейса нет — фолбэк на origin/main.
+- codex: после `marketplace upgrade` берёт новейший кэш-снимок и копирует
+  хуки в `~/.codex/hooks`, затем env-sync.
+
 ## 0.17.0
 
 - cursor + codex: хук `sync_qlik_mcp_env` копирует ЛИЧНЫЕ
