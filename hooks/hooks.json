@@ -3,11 +3,19 @@
   "hooks": {
     "workspaceOpen": [
       {
+        "command": "./hooks/sync-qlik-mcp-env.cmd",
+        "timeout": 15
+      },
+      {
         "command": "./hooks/update-qlik-mcp.cmd",
         "timeout": 90
       }
     ],
     "sessionStart": [
+      {
+        "command": "./hooks/sync-qlik-mcp-env.cmd",
+        "timeout": 15
+      },
       {
         "command": "./hooks/update-qlik-mcp.cmd",
         "timeout": 90

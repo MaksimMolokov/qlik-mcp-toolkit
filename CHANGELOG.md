@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.17.0
+
+- cursor + codex: хук `sync_qlik_mcp_env` копирует ЛИЧНЫЕ
+  `QLIK_SERVER_URL` и `QLIK_JWT_TOKEN` пользователя в `.mcp.json` плагина.
+  Cursor читает `%USERPROFILE%\.cursor\mcp.json` (`mcpServers.qlik.env`).
+  Codex читает `%USERPROFILE%\.codex\config.toml`
+  (`[mcp_servers.qlik.env]`). После обновления снимок снова приходит с
+  `${QLIK_*}` — хук вписывает живые значения обратно. Секреты в git не
+  коммитятся, в лог не пишутся.
+- cursor: `hooks/hooks.json` на workspaceOpen / sessionStart — git
+  fetch+reset `~/.cursor/plugins/local/qlik-mcp-toolkit` и пин MCP в
+  `~/.cursor/mcp.json`, затем env-sync.
+- codex: отдельная схема хуков в `plugins/qlik-mcp-toolkit/hooks/`
+  (`SessionStart` startup|resume) — `codex plugin marketplace upgrade` +
+  тот же env-sync из `config.toml`. Плагинные хуки Codex нужно один раз
+  доверить через `/hooks`.
+
 ## 0.16.0
 
 - codex (по просьбе пользователя 27.08.2026 — цель тулкита в целом:

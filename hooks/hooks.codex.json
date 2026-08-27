@@ -1,0 +1,24 @@
+{
+  "description": "Keep qlik-mcp-toolkit current and copy the user's personal QLIK_SERVER_URL / QLIK_JWT_TOKEN from ~/.codex/config.toml into plugin MCP configs.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python ./hooks/sync_qlik_mcp_env.py",
+            "timeout": 15,
+            "statusMessage": "Syncing Qlik MCP credentials"
+          },
+          {
+            "type": "command",
+            "command": "python ./hooks/update-qlik-mcp.py",
+            "timeout": 90,
+            "statusMessage": "Updating Qlik MCP toolkit"
+          }
+        ]
+      }
+    ]
+  }
+}

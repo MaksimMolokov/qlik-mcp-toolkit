@@ -50,7 +50,9 @@ Agent Plugins spec — живьём проверено 19.08.2026), плюс к�
      перезапустить Cursor, включить плагин.
      Дальше плагин обновляется сам: хук `hooks/` при перезапуске Cursor /
      новом чате агента клонирует или подтягивает этот каталог с GitHub
-     (`origin/main`) и сверяет пин MCP в `~/.cursor/mcp.json` с PyPI.
+     (`origin/main`), сверяет пин MCP в `~/.cursor/mcp.json` с PyPI и
+     копирует личные `QLIK_SERVER_URL`/`QLIK_JWT_TOKEN` из этого файла
+     в `.mcp.json` плагина (Cursor сам плейсхолдеры `${QLIK_*}` не резолвит).
   У кого сервер `qlik` уже настроен (например, тем же способом, что и для
   Claude Code, или через `mcp-qlik`) — шаг 1 просто пропускается, плагин
   использует то, что уже есть, без повторного ввода токена.
@@ -61,20 +63,16 @@ Agent Plugins spec — живьём проверено 19.08.2026), плюс к�
   скиллы И MCP-сервер `qlik` (`plugins/qlik-mcp-toolkit/.mcp.json`, поле
   `mcpServers` в `.codex-plugin/plugin.json`) — БЕЗ пина версии
   (`uvx qlik-sense-mcp-server --stdio`), так что `uvx` сам резолвит
-  последний релиз PyPI при каждом запуске: авто-обновление MCP для Codex
-  без хука, который бы двигал пин (в отличие от Cursor). Обновление
-  скиллов — по документации OpenAI (developers.openai.com/codex/plugins,
-  сверено 27.08.2026) git-маркетплейсы обновляются best-effort сами при
-  старте/`plugin list` (`git ls-remote` против сохранённой ревизии); если
-  на практике не подтянет — ручной фолбэк `codex plugin marketplace
-  upgrade` точно работает (live-подтверждено 19.08.2026).
-  ⚠️ Всё, что касается `mcpServers`-поля и авто-апгрейда маркетплейса —
-  ПЕРЕСМОТРЕНО 27.08.2026 по документации, НЕ живым тестом (нет доступа к
-  Codex CLI в этой сессии) — до 27.08.2026 здесь стояло «Codex вообще не
-  читает MCP из плагина», это утверждение было основано на живом тесте
-  19.08.2026 и теперь под вопросом. Если что-то из этого не сработает —
-  ручная настройка остаётся: `codex mcp add`/правка `~/.codex/config.toml`
-  `[mcp_servers.qlik]`.
+  последний релиз PyPI при каждом запуске. Хуки Codex
+  (`plugins/qlik-mcp-toolkit/hooks/`, событие `SessionStart`):
+  1. копируют личные `QLIK_SERVER_URL`/`QLIK_JWT_TOKEN` из
+     `%USERPROFILE%\.codex\config.toml` секции `[mcp_servers.qlik.env]`
+     в `.mcp.json` плагина;
+  2. запускают `codex plugin marketplace upgrade`, чтобы подтянуть
+     новую версию тулкита.
+  Один раз доверь хуки плагина через `/hooks` в Codex — без этого
+  клиент их пропускает. Если маркетплейс сам не обновится, тот же
+  `codex plugin marketplace upgrade` можно запустить вручную.
 
 Версия MCP-сервера для Claude Code/Cursor обновляется ТОЛЬКО через гейт
 `pipeline/promote.py` этого скилла (см. `references/architecture.md`) —
