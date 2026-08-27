@@ -58,13 +58,23 @@ Agent Plugins spec — живьём проверено 19.08.2026), плюс к�
   `qlik-mcp-data-access` и `qlik-mcp-session-context`.
 - **Codex CLI** (0.140.0+): `codex plugin marketplace add MaksimMolokov/qlik-mcp-toolkit` →
   `codex plugin add qlik-mcp-toolkit@qlik-mcp-toolkit-marketplace`. Ставит
-  ТОЛЬКО скиллы — Codex не читает MCP-конфиг из плагина/маркетплейса
-  вообще (ни `mcp.json`, ни `.mcp.json`), это отдельный слой. MCP-сервер —
-  разовая ручная настройка через `codex mcp add` (или правка
-  `~/.codex/config.toml`, секция `[mcp_servers.qlik]`), БЕЗ пина версии
-  (`uvx qlik-sense-mcp-server --stdio`, без `==версия`) — это единственный
-  способ получить действительно автообновляемую версию сервера в Codex,
-  раз маркетплейс её не разносит. Live-подтверждено 19.08.2026.
+  скиллы И MCP-сервер `qlik` (`plugins/qlik-mcp-toolkit/.mcp.json`, поле
+  `mcpServers` в `.codex-plugin/plugin.json`) — БЕЗ пина версии
+  (`uvx qlik-sense-mcp-server --stdio`), так что `uvx` сам резолвит
+  последний релиз PyPI при каждом запуске: авто-обновление MCP для Codex
+  без хука, который бы двигал пин (в отличие от Cursor). Обновление
+  скиллов — по документации OpenAI (developers.openai.com/codex/plugins,
+  сверено 27.08.2026) git-маркетплейсы обновляются best-effort сами при
+  старте/`plugin list` (`git ls-remote` против сохранённой ревизии); если
+  на практике не подтянет — ручной фолбэк `codex plugin marketplace
+  upgrade` точно работает (live-подтверждено 19.08.2026).
+  ⚠️ Всё, что касается `mcpServers`-поля и авто-апгрейда маркетплейса —
+  ПЕРЕСМОТРЕНО 27.08.2026 по документации, НЕ живым тестом (нет доступа к
+  Codex CLI в этой сессии) — до 27.08.2026 здесь стояло «Codex вообще не
+  читает MCP из плагина», это утверждение было основано на живом тесте
+  19.08.2026 и теперь под вопросом. Если что-то из этого не сработает —
+  ручная настройка остаётся: `codex mcp add`/правка `~/.codex/config.toml`
+  `[mcp_servers.qlik]`.
 
 Версия MCP-сервера для Claude Code/Cursor обновляется ТОЛЬКО через гейт
 `pipeline/promote.py` этого скилла (см. `references/architecture.md`) —

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "qlik": {
+      "command": "uvx",
+      "args": [
+        "qlik-sense-mcp-server",
+        "--stdio"
+      ],
+      "env": {
+        "QLIK_SERVER_URL": "${QLIK_SERVER_URL}",
+        "QLIK_JWT_TOKEN": "${QLIK_JWT_TOKEN}"
+      }
+    }
+  }
+}

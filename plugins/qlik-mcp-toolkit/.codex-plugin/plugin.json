@@ -1,11 +1,12 @@
 {
   "name": "qlik-mcp-toolkit",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "description": "Qlik Sense MCP: анализ, hypercube, population-lock и пин qlik-sense-mcp-server. Один плагин — все скиллы.",
   "author": {
     "name": "MaksimMolokov"
   },
   "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Qlik MCP Toolkit",
     "shortDescription": "Qlik-скиллы (анализ/hypercube/population-lock) для qlik-sense-mcp-server.",
