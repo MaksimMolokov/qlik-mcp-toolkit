@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.19.0
+
+- fix (по вопросу пользователя 27.08.2026 — увидел на GitHub что-то, что
+  выглядело как «структура сломана»): найден и убран осиротевший
+  `.codex-plugin/plugin.json` на КОРНЕ репозитория — версия застряла на
+  0.12.0 (не обновлялась 6 версий подряд), ничего его не читает
+  (`.agents/plugins/marketplace.json` указывает Codex на
+  `./plugins/qlik-mcp-toolkit`, не на корень; реальный файл —
+  `plugins/qlik-mcp-toolkit/.codex-plugin/plugin.json`, актуальный).
+  Похоже, остался от версий ДО введения `CODEX_PLUGIN_SUBDIR` в 0.7.0 и
+  никогда не был добавлен в `OBSOLETE_FILES`. Данные Cursor (`.cursor-
+  plugin/plugin.json`, `hooks/hooks.json`, `rules/qlik-mcp.mdc`) сверены
+  отдельно — на месте и актуальны (0.18.0), с этим проблем не было.
+
 ## 0.18.0
 
 - cursor: хук больше НЕ тянет GitHub HEAD мимо маркетплейса и НЕ отдаёт
