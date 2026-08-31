@@ -39,7 +39,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-HOOK_LOGIC_VERSION = "0.21.0"
+HOOK_LOGIC_VERSION = "2.3.0.1"  # схема: <пин MCP>.<итерация>, см. bootstrap.py
 
 HOOKS_DIR = Path(__file__).resolve().parent
 CURSOR_HOME = Path.home() / ".cursor"
