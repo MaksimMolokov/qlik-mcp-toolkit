@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.3.0.2
+
+- **fix: удаление события в `hooks/hooks.json` теперь доезжает до
+  установленного Cursor.** `hooks.json` не входит в `HOOK_FILES` и как скрипт
+  не копировался — из-за этого снятый в 0.20.0 триггер `beforeSubmitPrompt`
+  оставался в `~/.cursor/hooks.json` навсегда. Добавлен `reconcile_hooks_json()`
+  (вызывается из `refresh_user_hooks`): наши записи (узнаём по имени команды
+  `update-qlik-mcp`/`sync-qlik-mcp-env`) в `~/.cursor/hooks.json` и
+  `~/.cursor/hooks/hooks.json` приводятся к снимку маркетплейса, чужие хуки
+  не трогаются, опустевшие события удаляются. `HOOK_LOGIC_VERSION` -> `2.3.0.2`.
+
 ## 2.3.0.1
 
 - **новая схема версий toolkit** (по просьбе пользователя 31.08.2026):

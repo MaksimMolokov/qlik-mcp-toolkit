@@ -11,8 +11,11 @@ removed 31.08.2026, a per-prompt version check is unwanted):
   1. Find the newest marketplace snapshot (by plugin version, then mtime).
   2. Reset ~/.cursor/plugins/local/qlik-mcp-toolkit to THAT git ref.
   3. Return pluginPaths to the marketplace snapshot, not to local.
-  4. Copy hook scripts from the snapshot into ~/.cursor/hooks
-     (never downgrade a newer user-hook build).
+  4. Copy hook scripts from the snapshot into ~/.cursor/hooks, AND reconcile
+     our trigger entries in ~/.cursor/hooks.json against the snapshot's
+     hooks/hooks.json (so a removed event, e.g. beforeSubmitPrompt, actually
+     reaches an installed Cursor; other plugins' hooks left untouched).
+     Never downgrade a newer user-hook build.
   5. Align the qlik-sense-mcp-server pin to the snapshot's .mcp.json — and
      ONLY to that. No PyPI / GitHub-tag lookup: the pin follows whatever
      pipeline/promote.py gated and bootstrap.py --push published, never
@@ -39,7 +42,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-HOOK_LOGIC_VERSION = "2.3.0.1"  # схема: <пин MCP>.<итерация>, см. bootstrap.py
+HOOK_LOGIC_VERSION = "2.3.0.2"  # схема: <пин MCP>.<итерация>, см. bootstrap.py
 
 HOOKS_DIR = Path(__file__).resolve().parent
 CURSOR_HOME = Path.home() / ".cursor"
@@ -408,8 +411,72 @@ def align_local_clone(target_ref: str | None) -> dict[str, Any]:
     return info
 
 
+# Cursor читает регистрацию хуков из ~/.cursor/hooks.json (относительные
+# ./hooks/*.cmd резолвятся от ~/.cursor/). `hooks.json` НЕ входит в HOOK_FILES
+# и НЕ раздаётся как скрипт — триггеры (какие события слушать) сверяем
+# отдельно: наши записи узнаём по имени команды, приводим к тому, что в
+# снимке. Так удаление события (напр. beforeSubmitPrompt в 0.20.0) доезжает
+# до уже установленного Cursor, а чужие хуки в файле не трогаются.
+OUR_HOOK_CMD_MARKERS = ("update-qlik-mcp", "sync-qlik-mcp-env")
+
+
+def _is_our_hook_entry(entry: dict[str, Any]) -> bool:
+    cmd = str(entry.get("command", ""))
+    return any(m in cmd for m in OUR_HOOK_CMD_MARKERS)
+
+
+def reconcile_hooks_json(snapshot: Path) -> dict[str, Any]:
+    """Привести наши записи в ~/.cursor/hooks.json (и зеркало
+    ~/.cursor/hooks/hooks.json) к snapshot/hooks/hooks.json. Чужие плагины
+    в файле не трогаются."""
+    info: dict[str, Any] = {"updated": [], "error": None}
+    canonical_path = snapshot / "hooks" / "hooks.json"
+    if not canonical_path.is_file():
+        info["error"] = "snapshot has no hooks/hooks.json"
+        return info
+    try:
+        canonical = json.loads(canonical_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        info["error"] = f"read canonical failed: {exc}"
+        return info
+    canonical_events = canonical.get("hooks", {})
+
+    for target in (CURSOR_HOME / "hooks.json", USER_HOOKS_DIR / "hooks.json"):
+        try:
+            if target.is_file():
+                current = json.loads(target.read_text(encoding="utf-8-sig"))
+            else:
+                current = {"version": 1, "hooks": {}}
+        except (OSError, json.JSONDecodeError):
+            current = {"version": 1, "hooks": {}}
+        events = current.setdefault("hooks", {})
+
+        # 1) выкинуть НАШИ записи из всех событий
+        for name in list(events):
+            events[name] = [e for e in events[name] if not _is_our_hook_entry(e)]
+        # 2) вернуть наши записи ровно там, где их объявляет снимок
+        for name, entries in canonical_events.items():
+            ours = [e for e in entries if _is_our_hook_entry(e)]
+            events.setdefault(name, [])
+            events[name] = [e for e in events[name] if not _is_our_hook_entry(e)] + ours
+        # 3) убрать опустевшие события
+        for name in list(events):
+            if not events[name]:
+                del events[name]
+
+        rendered = json.dumps(current, ensure_ascii=False, indent=2) + "\n"
+        if not target.is_file() or target.read_text(encoding="utf-8-sig") != rendered:
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(rendered, encoding="utf-8", newline="\n")
+                info["updated"].append(str(target))
+            except OSError as exc:
+                info["error"] = f"write {target} failed: {exc}"
+    return info
+
+
 def refresh_user_hooks(snapshot: Path, snapshot_version: str | None) -> dict[str, Any]:
-    info: dict[str, Any] = {"copied": [], "skipped": None}
+    info: dict[str, Any] = {"copied": [], "skipped": None, "hooks_json": None}
     src = snapshot / "hooks"
     if not src.is_dir():
         info["skipped"] = "snapshot has no hooks/"
@@ -428,6 +495,7 @@ def refresh_user_hooks(snapshot: Path, snapshot_version: str | None) -> dict[str
             info["copied"].append(name)
         except OSError as exc:
             info["skipped"] = f"copy {name} failed: {exc}"
+    info["hooks_json"] = reconcile_hooks_json(snapshot)
     return info
 
 
@@ -673,6 +741,11 @@ def summarize(result: dict[str, Any]) -> str:
         lines.append(f"Hooks: refreshed {len(hooks['copied'])} user-hook file(s) from the snapshot.")
     elif hooks.get("skipped"):
         lines.append(f"Hooks: {hooks['skipped']}")
+    hj = hooks.get("hooks_json") or {}
+    if hj.get("updated"):
+        lines.append(f"Hooks: reconciled trigger registration in {len(hj['updated'])} hooks.json file(s) — Reload Window.")
+    elif hj.get("error"):
+        lines.append(f"Hooks: hooks.json reconcile error — {hj['error']}")
 
     current = mcp.get("current") or mcp.get("marketplace") or "?"
     if mcp.get("updated_files"):
