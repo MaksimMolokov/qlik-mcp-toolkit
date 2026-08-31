@@ -6,8 +6,10 @@ Source of truth for Cursor: the newest folder under
 The hook does NOT pull GitHub HEAD past that snapshot and does NOT point
 Cursor at a stale local clone.
 
-What it does on workspaceOpen / sessionStart (NOT beforeSubmitPrompt —
-removed 31.08.2026, a per-prompt version check is unwanted):
+What it does on sessionStart — the ONLY Cursor startup event (`workspaceOpen`
+is not a real Cursor event; a bad key rejects the whole hooks.json, so it
+took everything down with it. Not beforeSubmitPrompt either — a per-prompt
+version check is unwanted):
   1. Find the newest marketplace snapshot (by plugin version, then mtime).
   2. Reset ~/.cursor/plugins/local/qlik-mcp-toolkit to THAT git ref.
   3. Return pluginPaths to the marketplace snapshot, not to local.
@@ -42,7 +44,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-HOOK_LOGIC_VERSION = "2.3.0.2"  # схема: <пин MCP>.<итерация>, см. bootstrap.py
+HOOK_LOGIC_VERSION = "2.3.0.3"  # схема: <пин MCP>.<итерация>, см. bootstrap.py
 
 HOOKS_DIR = Path(__file__).resolve().parent
 CURSOR_HOME = Path.home() / ".cursor"
@@ -769,10 +771,13 @@ def summarize(result: dict[str, Any]) -> str:
 
 
 def output_for_event(event: str, result: dict[str, Any]) -> dict[str, Any]:
-    plugin_dir = result.get("plugin_dir") or str(LOCAL_PLUGIN_DIR)
     summary = result.get("summary") or "qlik-mcp-toolkit hook ran."
-    if event == "workspaceOpen":
-        return {"pluginPaths": [plugin_dir]}
+    # NB: `workspaceOpen` is NOT a valid Cursor hook event (confirmed from
+    # Cursor's own hooks log 31.08.2026 — one bad key rejects the WHOLE
+    # hooks.json, so no hook ran at all). Cursor's startup event is
+    # `sessionStart`. Plugin loading + version come from Cursor's native
+    # marketplace cache, not from us — the hook only aligns the local clone,
+    # MCP pin, credentials and hook self-update.
     if event == "sessionStart":
         return {"additional_context": summary}
     if event == "SessionStart":

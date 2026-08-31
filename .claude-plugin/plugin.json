@@ -1,6 +1,6 @@
 {
   "name": "qlik-mcp-toolkit",
   "displayName": "Qlik MCP Toolkit",
-  "version": "2.3.0.2",
+  "version": "2.3.0.3",
   "description": "Qlik Sense MCP: анализ, hypercube, population-lock и пин qlik-sense-mcp-server. Один плагин — все скиллы."
 }

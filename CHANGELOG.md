@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.3.0.3
+
+- **КРИТИЧНО: `workspaceOpen` — невалидное событие Cursor.** По логу
+  самого Cursor (`cursor.hooks*.log`, 31.08.2026): `Unknown hook type:
+  workspaceOpen ... Failed to parse user hooks configuration` — один плохой
+  ключ отбрасывает ВЕСЬ `hooks.json`, поэтому НИ ОДИН наш хук в Cursor не
+  запускался (все прежние «запуски» — ручные). Валидное событие старта —
+  только `sessionStart`. `hooks/hooks.json` теперь `sessionStart`-only; из
+  `output_for_event()` убрана мёртвая ветка `workspaceOpen` (её
+  `pluginPaths`-оверрайд никогда не срабатывал — версию/загрузку плагина
+  Cursor берёт из своего кэша маркетплейса сам). `HOOK_LOGIC_VERSION` -> `2.3.0.3`.
+
 ## 2.3.0.2
 
 - **fix: удаление события в `hooks/hooks.json` теперь доезжает до
