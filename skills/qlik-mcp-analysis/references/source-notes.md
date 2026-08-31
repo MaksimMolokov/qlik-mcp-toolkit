@@ -63,10 +63,13 @@ CHANGELOG**: `group_by`/`metrics[].field`/`filters[].field` в `engine_query`
 — это НЕ имя поля напрямую, а Qlik-выражение; многословное имя без
 `[Квадратных скобок]` падает с `Garbage after expression` — всегда оборачивай
 (`hypercube_builder.quote_field()`). `engine_create_hypercube.dimensions[].field`
-это ограничение не касается — там имя поля, а не выражение. Также живьём
-подтверждён новый `{filter}`-маркер в `engine_create_hypercube` (мера
-`Sum({filter} [Поле])` + top-level `filters` — сервер сам подставляет Set
-Analysis и репортит `filters_applied`). Остальные пункты релиза (unknown
+это ограничение не касается — там имя поля, а не выражение.
+🔴 **UPD 31.08.2026 (сервер 2.3.0):** `{filter}`-маркер в
+`engine_create_hypercube` СЛОМАН — сервер не разворачивает токен, мера
+молча возвращает нули (regression, см. `qlik-mcp-data-access/references/
+tool-catalog.md`, раздел «2.0.2 → 2.3.0»). В `engine_query` маркер
+по-прежнему работает. `hypercube_builder.build_measure()` теперь его
+блокирует. Остальные пункты релиза (unknown
 field теперь hard-reject, даты в формате Qlik вместо serial, CSRF-фикс,
 чистка 10 env-переменных) — из CHANGELOG/README апстрима, отдельно прицельно
 не перепроверялись в этом прогоне. Полная история версий и live-протокол —

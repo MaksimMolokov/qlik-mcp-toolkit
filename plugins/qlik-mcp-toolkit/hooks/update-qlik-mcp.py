@@ -6,14 +6,17 @@ Source of truth for Cursor: the newest folder under
 The hook does NOT pull GitHub HEAD past that snapshot and does NOT point
 Cursor at a stale local clone.
 
-What it does on workspaceOpen / sessionStart / beforeSubmitPrompt:
+What it does on workspaceOpen / sessionStart (NOT beforeSubmitPrompt —
+removed 31.08.2026, a per-prompt version check is unwanted):
   1. Find the newest marketplace snapshot (by plugin version, then mtime).
   2. Reset ~/.cursor/plugins/local/qlik-mcp-toolkit to THAT git ref.
   3. Return pluginPaths to the marketplace snapshot, not to local.
   4. Copy hook scripts from the snapshot into ~/.cursor/hooks
      (never downgrade a newer user-hook build).
-  5. Align the qlik-sense-mcp-server pin to the snapshot, then bump if PyPI
-     already has a newer version.
+  5. Align the qlik-sense-mcp-server pin to the snapshot's .mcp.json — and
+     ONLY to that. No PyPI / GitHub-tag lookup: the pin follows whatever
+     pipeline/promote.py gated and bootstrap.py --push published, never
+     ahead of the gate (was the "hook bypasses promote.py" open issue).
   6. Run env-sync so a freshly Refresh'ed snapshot gets the user's JWT/URL.
 
 Codex SessionStart: `codex plugin marketplace upgrade`, then the same
@@ -32,13 +35,11 @@ import shutil
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-HOOK_LOGIC_VERSION = "0.18.0"
+HOOK_LOGIC_VERSION = "0.21.0"
 
 HOOKS_DIR = Path(__file__).resolve().parent
 CURSOR_HOME = Path.home() / ".cursor"
@@ -53,7 +54,6 @@ CACHE_ROOT = CURSOR_HOME / "plugins" / "cache"
 CODEX_CACHE_ROOT = CODEX_HOME / "plugins" / "cache"
 
 SKILLS_REPO = "https://github.com/MaksimMolokov/qlik-mcp-toolkit.git"
-MCP_GITHUB_REPO = "https://github.com/bintocher/qlik-sense-mcp.git"
 MCP_PACKAGE = "qlik-sense-mcp-server"
 PIN_RE = re.compile(rf"({re.escape(MCP_PACKAGE)})==([0-9]+(?:\.[0-9]+)*)")
 GIT_REF_DIR_RE = re.compile(r"^[0-9a-f]{7,40}$", re.IGNORECASE)
@@ -69,7 +69,6 @@ HOOK_FILES = (
 )
 
 GIT_TIMEOUT = 45
-HTTP_TIMEOUT = 15
 PROMPT_THROTTLE_SEC = 60
 GIT = shutil.which("git") or r"C:\Program Files\Git\cmd\git.exe"
 
@@ -108,14 +107,6 @@ def parse_version(value: str) -> tuple[int, ...] | None:
     if not re.fullmatch(r"[0-9]+(?:\.[0-9]+)*", text):
         return None
     return tuple(int(part) for part in text.split("."))
-
-
-def version_gt(left: str, right: str) -> bool:
-    a = parse_version(left)
-    b = parse_version(right)
-    if a is None or b is None:
-        return False
-    return a > b
 
 
 def version_ge(left: str, right: str) -> bool:
@@ -228,42 +219,6 @@ def bump_pin(path: Path, new_version: str) -> bool:
     if count == 0 or updated == text:
         return False
     path.write_text(updated, encoding="utf-8", newline="\n")
-    return True
-
-
-def http_json(url: str) -> Any:
-    request = urllib.request.Request(url, headers={"User-Agent": "qlik-mcp-toolkit-plugin-hook"})
-    with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT) as response:
-        return json.loads(response.read().decode("utf-8"))
-
-
-def pypi_latest() -> str | None:
-    data = http_json(f"https://pypi.org/pypi/{MCP_PACKAGE}/json")
-    version = str(data.get("info", {}).get("version") or "").strip()
-    return version if parse_version(version) else None
-
-
-def github_latest_tag() -> str | None:
-    proc = run_git(["ls-remote", "--tags", "--refs", MCP_GITHUB_REPO])
-    if proc.returncode != 0:
-        return None
-    best: str | None = None
-    for line in proc.stdout.splitlines():
-        if "\t" not in line:
-            continue
-        tag = line.split("\t", 1)[1].strip().rsplit("/", 1)[-1]
-        if parse_version(tag) is None:
-            continue
-        if best is None or version_gt(tag, best):
-            best = tag.lstrip("vV")
-    return best
-
-
-def pypi_has_version(version: str) -> bool:
-    try:
-        http_json(f"https://pypi.org/pypi/{MCP_PACKAGE}/{version}/json")
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, json.JSONDecodeError):
-        return False
     return True
 
 
@@ -491,38 +446,24 @@ def snapshot_mcp_files(snapshot: Path | None) -> list[Path]:
 
 
 def update_mcp_pin(snapshot: Path | None) -> dict[str, Any]:
+    """Align the user's qlik MCP pin to the marketplace snapshot's .mcp.json —
+    and ONLY to that. The snapshot ships whatever `pipeline/promote.py` last
+    gated and `scripts/bootstrap.py --push` published; the hook does NOT
+    consult PyPI or GitHub tags, so it can never move the pin ahead of the
+    gate (decided 31.08.2026, was the "hook bypasses promote.py" open issue).
+    An unpinned snapshot .mcp.json (bare package name) leaves the user's
+    config untouched.
+    """
     snapshot_files = snapshot_mcp_files(snapshot)
     info: dict[str, Any] = {
         "current": current_pin(USER_MCP_JSON),
         "marketplace": next((current_pin(path) for path in snapshot_files if current_pin(path)), None),
-        "github": None,
-        "pypi": None,
         "installed": None,
         "updated_files": [],
-        "github_ahead": False,
         "error": None,
     }
-    try:
-        info["pypi"] = pypi_latest()
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        info["error"] = f"pypi lookup failed: {exc}"
-    try:
-        info["github"] = github_latest_tag()
-    except OSError as exc:
-        log(f"github tag lookup failed: {exc}")
 
-    candidate = info["marketplace"] or info["current"]
-    pypi = info["pypi"]
-    if pypi and (not candidate or version_gt(pypi, candidate)):
-        candidate = pypi
-    github = info["github"]
-    if github and candidate and version_gt(github, candidate):
-        info["github_ahead"] = True
-        if pypi_has_version(github):
-            candidate = github
-    elif github and not candidate and pypi_has_version(github):
-        candidate = github
-
+    candidate = info["marketplace"]
     info["installed"] = candidate
     if not candidate:
         return info
@@ -736,12 +677,12 @@ def summarize(result: dict[str, Any]) -> str:
     current = mcp.get("current") or mcp.get("marketplace") or "?"
     if mcp.get("updated_files"):
         lines.append(
-            f"MCP: updated {MCP_PACKAGE} {current} -> {mcp.get('installed')}. Restart the qlik MCP server."
+            f"MCP: aligned {MCP_PACKAGE} {current} -> {mcp.get('installed')} (marketplace snapshot). Restart the qlik MCP server."
         )
     elif mcp.get("error"):
         lines.append(f"MCP: error — {mcp['error']}")
     else:
-        lines.append(f"MCP: {MCP_PACKAGE}=={current} (PyPI {mcp.get('pypi') or 'n/a'}).")
+        lines.append(f"MCP: {MCP_PACKAGE}=={current} (matches marketplace snapshot).")
 
     if creds.get("error"):
         lines.append(f"Credentials: error — {creds['error']}")

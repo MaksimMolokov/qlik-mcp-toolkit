@@ -18,27 +18,38 @@ description: Безопасная read-only обвязка над MCP-серве
 ориентир, но при любом расхождении с реальной схемой вызова доверяй
 реальности, не файлу.
 
-✅ **`qlik-sense-mcp-server 2.0.2` — схема и поведение подтверждены живьём
-16.08.2026** (2.0.0 13.08 → 2.0.1/2.0.2 апстрим 13-14.08, у нас обновлено и
-перепроверено 16.08.2026). Modern-схема `engine_create_hypercube`
-(`sort_by`/`sort_order`/`limit` на верхнем уровне) и `comment` в
-`get_app_details` подтверждены живьём ещё на 1.7.2, актуальны и на 2.0.2.
-**Новое в 2.0.0**: инструмент `engine_query` и `{filter}`-маркер в
-`engine_create_hypercube` — проверены реальными вызовами. **Важное
-изменение поведения на 2.0.2, найденное живым тестом, а НЕ в CHANGELOG
-апстрима**: `engine_create_hypercube.dimensions[].field` теперь тоже
-требует `[скобок]` для многословных имён (раньше — не требовал), падает
-явной `invalid_expression`, а не тихо схлопывается — `hypercube_builder.
-build_dimension()` уже оборачивает автоматически, руками не нужно. Гипотезы
-из upstream CHANGELOG про explicit-error на out-of-range `offset` и на
-перевёрнутые границы периода — живым тестом ОПРОВЕРГНУТЫ (сервер по-прежнему
-тихо отдаёт пустой результат/сам переставляет границы, не ошибку). Детали —
-`references/tool-catalog.md`, раздел "2.0.0 → 2.0.2".
+✅ **`qlik-sense-mcp-server 2.3.0` — схема и поведение подтверждены живьём
+31.08.2026** (пин toolkit поднят 2.0.2 → 2.3.0 через гейт `promote.py`,
+regression из 13 проверок, отчёт `qlik-mcp-toolkit/pipeline/regression-reports/2.3.0.json`).
+Modern-схема `engine_create_hypercube` (`sort_by`/`sort_order`/`limit` на
+верхнем уровне) и `comment` в `get_app_details` — актуальны.
+
+🔴 **РЕГРЕССИЯ 2.3.0: `{filter}`-маркер в `engine_create_hypercube` СЛОМАН.**
+Сервер не разворачивает токен — мера молча возвращает нули (в ответе
+`measures[]` виден литеральный `Sum({filter} ...)`). `hypercube_builder.
+build_measure()` и `build_hypercube_request_modern()` теперь бросают
+`ValueError` на `{filter}`. Что делать с фильтрованной мерой:
+  - **предпочтительно** — `engine_query` (`build_engine_query()`): `filters=[...]`
+    + при желании `{filter}` в `measures[].expression` — ТАМ маркер работает;
+  - иначе — вписать Set Analysis руками в hypercube-меру:
+    `Sum({<[Поле]={'значение'}>} Expr)` (ручной Set Analysis на 2.3.0 в норме).
+
+**Прочие изменения 2.3.0** (апстрим release notes пустые, найдено живым
+тестом): перевёрнутые границы периода (`from`>`to`) — теперь явная ошибка
+`invalid_period` (раньше сервер тихо переставлял); многословные имена полей
+в `engine_query` `group_by`/`metrics[].field` больше НЕ требуют `[скобок]`
+(в `engine_create_hypercube.dimensions[].field` — по-прежнему требуют,
+`build_dimension()` оборачивает сама); out-of-range `offset` — по-прежнему
+тихий `returned_rows: 0` (+ `numbers_verified:false`); батч `queries[]`
+(до 25) с пофайловым частичным отказом; баг реконнекта («Not connected to
+Engine API») НЕ исправлен — правило ретрая в силе. Детали —
+`references/tool-catalog.md`, раздел "2.0.2 → 2.3.0".
 
 ## Модули
 
 - `scripts/hypercube_builder.py` — `build_dimension()`/`build_measure()`
-  (запрещают вычисляемые измерения и `If()` внутри агрегата; `build_dimension()`
+  (запрещают вычисляемые измерения, `If()` внутри агрегата и — с 31.08.2026 —
+  маркер `{filter}` в hypercube-мере, см. регрессию 2.3.0 выше; `build_dimension()`
   с 2.0.2 сама оборачивает `field` через `quote_field()` — руками скобки
   можно не добавлять),
   `set_analysis_clause()` (верная расстановка кавычек: числа без кавычек,

@@ -24,8 +24,20 @@
    платила снова за шаги 3-4.
 6. `engine_get_field_range`/`get_app_field` — если нужно узнать границы/формат
    значения перед фильтром.
-7. `engine_create_hypercube` (через `hypercube_builder`), measures-only
-   сначала, потом добавляй dimensions.
+7. Выбор инструмента:
+   - простое «сколько по чему» + фильтр по периоду/значению → `engine_query`
+     (`build_engine_query()`): `filters=[...]`, сервер сам пишет Set Analysis
+     и в ответе показывает, что применил. **Для фильтрованной меры это
+     основной путь.**
+   - `Aggr()`, вложенная агрегация, `FirstSortedValue`, `P()`/`E()`, сравнение
+     двух периодов в одной колонке → `engine_create_hypercube` (через
+     `hypercube_builder`), measures-only сначала, потом dimensions.
+     🔴 **`{filter}`-маркер в `engine_create_hypercube` СЛОМАН на сервере
+     2.3.0** — молча даёт нули (`build_measure()` бросает `ValueError`).
+     Фильтр в hypercube-мере — только вписанным руками Set Analysis
+     (`Sum({<[Поле]={'значение'}>} Expr)`); если можно обойтись `engine_query` —
+     обойдись. Детали: `qlik-mcp-data-access/references/tool-catalog.md`,
+     раздел «2.0.2 → 2.3.0».
 8. Провалидируй ответ (`validation.md`), сохрани в session-context
    (`upsert_query`).
 

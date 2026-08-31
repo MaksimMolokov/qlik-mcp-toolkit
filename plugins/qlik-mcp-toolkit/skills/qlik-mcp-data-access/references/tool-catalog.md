@@ -5,6 +5,57 @@ JWT-режим, Qlik build `31.56.2.0`). Это снимок на дату пр�
 гарантия на будущее — при новом запуске всегда сверяйся со схемой вызова,
 которую тебе реально показал MCP-клиент СЕЙЧАС, не с этим файлом.
 
+## ✅/🔴 2.0.2 → 2.3.0 — пин toolkit поднят через гейт, live-regression 31.08.2026
+
+Апстрим `bintocher/qlik-sense-mcp` выпустил 2.1.0/2.2.0/2.3.0 — **release
+notes пустые** («Release v2.X.0»), сверять по CHANGELOG нечего. Пин
+`qlik-mcp-toolkit` поднят 2.0.2 → 2.3.0 через `pipeline/promote.py`
+(regression из 13 живых проверок, `llm_model_top50_clients` + `Профиль
+клиента (MCP)`, отчёт `qlik-mcp-toolkit/pipeline/regression-reports/2.3.0.json`).
+
+🔴 **РЕГРЕССИЯ: `{filter}`-маркер в `engine_create_hypercube` больше НЕ
+работает.** `Sum({filter} [Оборот по позиции])` + `filters=[{...}]` → мера
+молча возвращает **нули** для всех строк (сервер отдаёт `warnings` про
+«came back 0 or '-'», в эхо `measures[]` виден литеральный `Sum({filter}
+...)` — токен не развёрнут). Воспроизведено дважды (period-фильтр и
+values-фильтр). Та же мера с ручным Set Analysis в том же вызове —
+корректные числа. `hypercube_builder.build_measure()` /
+`build_hypercube_request_modern()` теперь бросают `ValueError` на `{filter}`.
+Обход: `engine_query` (там `{filter}` в `measures[].expression` + `filters`
+**работает** — подтверждено тем же прогоном) либо ручной Set Analysis в
+hypercube-мере.
+
+✅ **Улучшения 2.3.0:**
+- Перевёрнутый период (`from` > `to`) в `filters` — теперь **явная ошибка**
+  `error_category: invalid_period` («Period on [X] starts at ... and ends
+  at ..., which is earlier»). На 2.0.2 сервер тихо переставлял границы.
+  В батче падает только эта подзадача (`queries_failed`), остальные идут.
+- Многословные имена полей в `engine_query` `group_by` / `metrics[].field`
+  больше **НЕ требуют `[скобок]`** (на 2.0.2 требовали). В
+  `engine_create_hypercube.dimensions[].field` — по-прежнему требуют,
+  `build_dimension()` оборачивает через `quote_field()` сама.
+- `engine_query` batch `queries[]` (до 25) с частичным отказом; новая
+  схема: `Metric.of/op/per/inner_agg/total_except`, `Scope` (bookmarks,
+  alternate states, selection history), `Filter.matching/not_matching/
+  match_expression`, `Measure.master`; `get_app_details` отдаёт
+  `named_sets.bookmarks`.
+- `engine_query` `filters` с `period:'YYYY-MM'` → в ответе `filters_applied`
+  (`serial_from`/`serial_to_exclusive`/`distinct_values_in_period`) +
+  `period_check` (`earliest_in_result`/`latest_in_result`/`filter_applied`).
+
+⚠️ **Не изменилось / не исправлено:**
+- Out-of-range `offset` в `engine_query`/`engine_create_hypercube` —
+  по-прежнему тихий `returned_rows: 0` без ошибки (добавились
+  `numbers_verified:false` + warning «No rows matched»).
+- Баг реконнекта («`Not connected to Engine API`», `error_type:
+  ConnectionError`, ~45с) — **жив**. Тяжёлый `engine_query` со ~120
+  значениями в `filters[].values` упал на 1-й попытке даже на тёплом
+  соединении, ретрай прошёл (14.9с). Правило «повтори тот же вызов до 2
+  раз» — в силе. Прим.: «117 значений = детерминированный отказ 5/5» из
+  прогона v7 (28.08) — на 2.3.0 НЕ детерминизм, это тот же баг реконнекта.
+- Противоречивые условия в `filters` (одно поле, два разных значения) —
+  ошибки нет, возвращается непустой результат (похоже на last-wins).
+
 ## ✅ 2.0.0 → 2.0.2 — переустановлен и live-подтверждён 16.08.2026 (исправляет предположения из upstream CHANGELOG)
 
 `uv tool list` подтвердил `qlik-sense-mcp-server v2.0.2` на диске (апстрим

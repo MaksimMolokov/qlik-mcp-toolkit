@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.21.0
+
+- follow-up к регрессии 2.3.0 (2 решения пользователя 31.08.2026):
+  - **хук `hooks/update-qlik-mcp.py` больше НЕ бампит пин MCP с PyPI/GitHub.**
+    `update_mcp_pin()` теперь выравнивает `~/.cursor/mcp.json` (и локальный
+    клон) ТОЛЬКО по `.mcp.json` снимка маркетплейса — то есть по тому, что
+    прошло гейт `pipeline/promote.py` и было запушено. Закрыт давний открытый
+    вопрос «хук обходит гейт». Удалены `pypi_latest`/`github_latest_tag`/
+    `pypi_has_version`/`http_json`/`version_gt`/`MCP_GITHUB_REPO`. Из
+    `hooks/hooks.json` убран триггер `beforeSubmitPrompt` (проверка версии
+    только на `workspaceOpen`/`sessionStart`). `HOOK_LOGIC_VERSION` 0.18.0 -> 0.21.0.
+  - **`{filter}` в `engine_create_hypercube` заблокирован в коде.**
+    `hypercube_builder.build_measure()` и `build_hypercube_request_modern()`
+    бросают `ValueError` на маркер `{filter}` (регрессия 2.3.0 — молча даёт
+    нули). Фильтрованная мера: `engine_query` (там `{filter}` работает) или
+    ручной Set Analysis. Обновлены `qlik-mcp-data-access` SKILL.md +
+    `references/tool-catalog.md` (раздел «2.0.2 -> 2.3.0») и `qlik-mcp-analysis`
+    `references/tool-workflows.md` + `source-notes.md`.
+
 ## 0.20.0
 
 - mcp: `qlik-sense-mcp-server==2.3.0` (pinned, было `2.0.2`). Гейт

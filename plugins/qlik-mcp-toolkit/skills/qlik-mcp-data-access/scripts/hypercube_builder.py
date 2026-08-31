@@ -125,6 +125,15 @@ def build_measure(expression: str, label: str) -> dict[str, str]:
             f"measure {label!r} содержит If() внутри агрегата — per-row scan, "
             "перепиши через Set Analysis: Sum({<Field={...}>} Expr)"
         )
+    if "{filter}" in expression:
+        raise ValueError(
+            f"measure {label!r} содержит маркер {{filter}} — в engine_create_hypercube "
+            "он СЛОМАН на qlik-sense-mcp-server 2.3.0: сервер не разворачивает токен, "
+            "мера молча возвращает нули (regression 31.08.2026, см. tool-catalog.md). "
+            "Варианты: (1) engine_query с filters=[...] и {filter} в measures[].expression "
+            "(там маркер работает), либо (2) впиши Set Analysis руками: "
+            "Sum({<[Поле]={'значение'}>} Expr)."
+        )
     return {"expression": expression, "label": label}
 
 
@@ -279,6 +288,13 @@ def build_hypercube_request_modern(
     `has_more: false` (no explicit error, confirmed live), so check
     `returned_rows`/`total_rows` rather than expecting a hard failure.
     """
+    for m in measures:
+        if "{filter}" in str(m.get("expression", "")):
+            raise ValueError(
+                f"measure {m.get('label', m)!r} содержит {{filter}} — сломан в "
+                "engine_create_hypercube на сервере 2.3.0 (молча даёт нули). "
+                "Используй build_engine_query() или впиши Set Analysis руками."
+            )
     request: dict[str, Any] = {
         "app_id": app_id,
         "dimensions": dimensions,
