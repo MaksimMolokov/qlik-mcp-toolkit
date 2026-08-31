@@ -20,16 +20,6 @@
         "command": "./hooks/update-qlik-mcp.cmd",
         "timeout": 90
       }
-    ],
-    "beforeSubmitPrompt": [
-      {
-        "command": "./hooks/sync-qlik-mcp-env.cmd",
-        "timeout": 15
-      },
-      {
-        "command": "./hooks/update-qlik-mcp.cmd",
-        "timeout": 90
-      }
     ]
   }
 }

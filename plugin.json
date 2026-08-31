@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "qlik-mcp-toolkit",
-  "version": "0.19.0",
+  "version": "0.20.0",
   "description": "Qlik Sense MCP: анализ, hypercube, population-lock и пин qlik-sense-mcp-server. Один плагин — все скиллы."
 }

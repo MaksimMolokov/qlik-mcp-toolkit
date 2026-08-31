@@ -1,5 +1,92 @@
 # Changelog
 
+## 0.20.0
+
+- mcp: `qlik-sense-mcp-server==2.3.0` (pinned, было `2.0.2`). Гейт
+  `pipeline/promote.py` — regression прогнан живьём 2026-08-31T10:04:38+00:00
+  на `llm_model_top50_clients + Профиль клиента (MCP)`, отчёт заархивирован в
+  `pipeline/regression-reports/2.3.0.json`:
+  - get_app_details smoke — opens app, returns full data model + field
+    comments — **confirmed** (llm_model_top50_clients (5 tables, 74 fields)
+    returned in 11.9s; Профиль клиента (MCP) (29 tables, 202 fields) in 29.1s.
+    New in output: named_sets.bookmarks list (8 bookmarks on the 2nd app).)
+  - engine_query smoke — group_by + aggregate metric — **confirmed**
+    (group_by=[Вид спорта], sum(Оборот по позиции), sort+limit 5 → 5 rows,
+    grand_total 6,447,684,363.9, 3.9s. engine_query is promoted to the front
+    of the Engine tool list in 2.3.0 --help.)
+  - multi-word field names no longer need [square brackets] in engine_query
+    group_by / metrics[].field — **confirmed** (Passed 'Вид спорта' / 'Оборот
+    по позиции' unbracketed in group_by and metrics[].field — resolved
+    correctly. On <=2.0.2 the skill wrapped these in brackets
+    (hypercube_builder.quote_field); on 2.3.0 unbracketed works. Bracketed
+    form still accepted.)
+  - engine_query period filter — {field, period:'2026-08'} — server writes set
+    analysis and reports what it selected — **confirmed** (period '2026-08' →
+    filters_applied reports serial_from 46235 / serial_to_exclusive 46266 /
+    distinct_values_in_period 30, and period_check reports earliest_in_result
+    01.08.2026 / latest 30.08.2026 / filter_applied true. Richer verification
+    payload than 2.0.2.)
+  - engine_create_hypercube modern schema (top-level
+    dimensions/measures/sort_by/sort_order/limit) + manual Set Analysis on a
+    text field in a measure — **confirmed** (dims=[Вид спорта], measure
+    Sum({<[Тип ставки]={'Одинар'}>} [Оборот по позиции]), sort_by+limit → real
+    numbers (футбол 2,549,886,729.3), 1.9s. Modern schema and manual
+    set-analysis quoting both work.)
+  - {filter} marker in engine_create_hypercube measures — server substitutes
+    the described filter into the set modifier — **refuted** (REGRESSION.
+    Sum({filter} [GGR по позиции]) with filters=[{Дата, period:'2026-08'}] AND
+    Sum({filter} [Оборот по позиции]) with filters=[{Тип ставки,
+    values:['Одинар']}] both returned ALL ZEROS. The measures[] echo in the
+    response keeps the literal string 'Sum({filter} ...)' — the {filter} token
+    is NOT expanded, Qlik evaluates it as nothing. Same call with an explicit
+    manual set analysis returns correct numbers. On 2.0.0-2.0.2
+    {filter}-in-hypercube was reported working. Workaround: use manual Set
+    Analysis in hypercube measures, or use engine_query (see next check).)
+  - {filter} marker works in engine_query measures[].expression —
+    **confirmed** (engine_query measure Sum({filter} [Оборот по позиции]) with
+    filters=[{Тип ставки, values:['Одинар']}] → correct numbers (футбол
+    2,549,886,729.3, identical to the manual-SA value), and
+    measure_filters[].filters_applied is reported. So {filter} is broken only
+    in engine_create_hypercube, not in engine_query.)
+  - out-of-range offset in engine_query — explicit error vs silent empty —
+    **confirmed** (offset=999999 → returned_rows 0, no error, but now adds
+    numbers_verified:false and warning 'No rows matched...'. Still silent-ish
+    (no hard error) as on 2.0.2, marginally better signal.)
+  - inverted period bounds (from > to) in engine_query filters — explicit
+    error vs silent auto-swap — **confirmed** (CHANGED. filter {Дата,
+    from:'2026-08-31', to:'2026-08-01'} → error_category 'invalid_period',
+    message 'Period on [Дата] starts at 2026-08-31 and ends at 2026-08-01,
+    which is earlier.' On 2.0.2 the server silently swapped the bounds. Now an
+    explicit, isolated per-query failure (queries_failed:1, other queries in
+    the batch still ran).)
+  - contradictory filters (same field, two disjoint single-value selections)
+    in engine_query — **partial** (filters=[{Тип ставки:['Одинар']},{Тип
+    ставки:['Экспресс']}] → no error, returns a non-empty result (grand_total
+    1,691,093,915) that looks like last-filter-wins rather than an
+    intersection. filters_applied echoes both without a warning. Low severity,
+    but silent.)
+  - large filters[].values list (~120 client numbers) on Профиль клиента (MCP)
+    — deterministic failure (was 5/5 ConnectionError on v7_sonnet5 / 2.0.2) —
+    **partial** (1st attempt: error_type ConnectionError 'Not connected to
+    Engine API' after 45.7s. Immediate retry (same 120 values): SUCCESS in
+    14.9s, real data (Год 2025: 7,497,725 / 2026: 4,920,438). So on 2.3.0 it
+    is NOT deterministic — it is the reconnect bug, and the mandatory
+    single-retry recovers it.)
+  - reconnect bug ('Not connected to Engine API' / CreateSessionObject
+    timeout) — claimed fixed since 1.8.0, never verified our side —
+    **refuted** (STILL PRESENT on 2.3.0. The 120-value engine_query failed on
+    the first attempt with a ~45s ConnectionError even though the connection
+    was warm (several successful calls immediately before), then succeeded on
+    retry. The qlik-mcp-data-access mandatory 'retry the same call up to
+    twice' rule stays in force.)
+  - engine_query batch queries[] (multiple independent queries in one call)
+    with partial-failure handling — **confirmed** (4-query batch (smoke /
+    period / inverted-bounds / oor-offset) → queries_run 3, queries_failed 1,
+    failed:['inverted_bounds'], the 3 good queries all returned. Batch is a
+    new/expanded capability in the 2.3.0 schema (up to 25 queries,
+    Metric.of/op/per/inner_agg, Scope with bookmarks & alternate states,
+    Filter.matching/not_matching).)
+
 ## 0.19.0
 
 - fix (по вопросу пользователя 27.08.2026 — увидел на GitHub что-то, что

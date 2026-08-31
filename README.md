@@ -2,7 +2,7 @@
 
 Общий дистрибутив qlik-mcp-скиллов (семантика приложения → hypercube →
 валидация → population-lock для уточнений) + пин версии MCP-сервера
-`qlik-sense-mcp-server==2.0.2` (для Claude Code/Cursor — см. ниже про Codex). Один и тот же
+`qlik-sense-mcp-server==2.3.0` (для Claude Code/Cursor — см. ниже про Codex). Один и тот же
 `skills/` читают все три клиента — расходятся только тонкие манифесты:
 `.claude-plugin/` (Claude Code), `.cursor-plugin/` (Cursor), `.agents/
 plugins/` + `.codex-plugin/` (Codex CLI, свой проприетарный формат, НЕ
@@ -41,7 +41,7 @@ Agent Plugins spec — живьём проверено 19.08.2026), плюс к�
   у него, как правило, уже настроено). Порядок действий:
   1. Сначала убедиться, что в Cursor уже есть рабочий MCP-сервер `qlik`
      (Settings → MCP). Если его ещё нет — one-click:
-     [Add qlik MCP server](cursor://anysphere.cursor-deeplink/mcp/install?name=qlik&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyJxbGlrLXNlbnNlLW1jcC1zZXJ2ZXI9PTIuMC4yIiwgIi0tc3RkaW8iXSwgImVudiI6IHsiUUxJS19TRVJWRVJfVVJMIjogIllPVVJfUUxJS19TRVJWRVJfVVJMIiwgIlFMSUtfSldUX1RPS0VOIjogIllPVVJfUUxJS19KV1RfVE9LRU4ifX0=), затем вписать свои реальные
+     [Add qlik MCP server](cursor://anysphere.cursor-deeplink/mcp/install?name=qlik&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyJxbGlrLXNlbnNlLW1jcC1zZXJ2ZXI9PTIuMy4wIiwgIi0tc3RkaW8iXSwgImVudiI6IHsiUUxJS19TRVJWRVJfVVJMIjogIllPVVJfUUxJS19TRVJWRVJfVVJMIiwgIlFMSUtfSldUX1RPS0VOIjogIllPVVJfUUxJS19KV1RfVE9LRU4ifX0=), затем вписать свои реальные
      `QLIK_SERVER_URL`/`QLIK_JWT_TOKEN` вместо плейсхолдеров.
   2. Только потом установить плагин со скиллами — склонировать
      `https://github.com/MaksimMolokov/qlik-mcp-toolkit` в

@@ -3,7 +3,7 @@
     "qlik": {
       "command": "uvx",
       "args": [
-        "qlik-sense-mcp-server==2.0.2",
+        "qlik-sense-mcp-server==2.3.0",
         "--stdio"
       ],
       "env": {
