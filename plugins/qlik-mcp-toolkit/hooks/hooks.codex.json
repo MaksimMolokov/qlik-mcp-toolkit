@@ -14,7 +14,7 @@
           {
             "type": "command",
             "command": "python ./hooks/update-qlik-mcp.py",
-            "timeout": 90,
+            "timeout": 120,
             "statusMessage": "Updating Qlik MCP toolkit"
           }
         ]

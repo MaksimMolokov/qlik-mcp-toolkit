@@ -8,7 +8,7 @@
       },
       {
         "command": "./hooks/update-qlik-mcp.cmd",
-        "timeout": 90
+        "timeout": 120
       }
     ]
   }

@@ -52,8 +52,13 @@ Agent Plugins spec — живьём проверено 19.08.2026), плюс к�
      маркетплейса в `~/.cursor/plugins/cache`, ставит local-клон на тот же
      git-коммит (не вперёд GitHub HEAD), отдаёт `pluginPaths` на снимок
      маркетплейса (не на старый local), копирует хуки снимка в
-     `~/.cursor/hooks`, выравнивает пин MCP и сразу вписывает личные
-     `QLIK_SERVER_URL`/`QLIK_JWT_TOKEN` в `.mcp.json` нового снимка.
+     `~/.cursor/hooks`, **принудительно ставит пин MCP**
+     `qlik-sense-mcp-server==<первые три цифры toolkit>` в
+     `~/.cursor/mcp.json` (в том числе если там был голый пакет без
+     `==версии` — иначе `uvx` продолжает отдавать старый кэш) и сразу
+     вписывает личные `QLIK_SERVER_URL`/`QLIK_JWT_TOKEN` в `.mcp.json`
+     нового снимка. После смены пина нужен рестарт MCP-сервера `qlik`
+     (Reload Window / выйти-зайти достаточно, если хук уже отработал).
   У кого сервер `qlik` уже настроен (например, тем же способом, что и для
   Claude Code, или через `mcp-qlik`) — шаг 1 просто пропускается, плагин
   использует то, что уже есть, без повторного ввода токена.
@@ -62,9 +67,10 @@ Agent Plugins spec — живьём проверено 19.08.2026), плюс к�
 - **Codex CLI** (0.140.0+): `codex plugin marketplace add MaksimMolokov/qlik-mcp-toolkit` →
   `codex plugin add qlik-mcp-toolkit@qlik-mcp-toolkit-marketplace`. Ставит
   скиллы И MCP-сервер `qlik` (`plugins/qlik-mcp-toolkit/.mcp.json`, поле
-  `mcpServers` в `.codex-plugin/plugin.json`) — БЕЗ пина версии
-  (`uvx qlik-sense-mcp-server --stdio`), так что `uvx` сам резолвит
-  последний релиз PyPI при каждом запуске. Хуки Codex
+  `mcpServers` в `.codex-plugin/plugin.json`) с тем же пином, что и
+  Cursor (`uvx qlik-sense-mcp-server==2.3.0 --stdio`). Голый пакет без
+  версии специально больше не используется: `uvx` кэширует резолв и
+  оставляет коллег на старом MCP при уже новом toolkit. Хуки Codex
   (`plugins/qlik-mcp-toolkit/hooks/`, событие `SessionStart`):
   1. копируют личные `QLIK_SERVER_URL`/`QLIK_JWT_TOKEN` из
      `%USERPROFILE%\.codex\config.toml` секции `[mcp_servers.qlik.env]`

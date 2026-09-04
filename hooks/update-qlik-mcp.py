@@ -18,10 +18,12 @@ version check is unwanted):
      hooks/hooks.json (so a removed event, e.g. beforeSubmitPrompt, actually
      reaches an installed Cursor; other plugins' hooks left untouched).
      Never downgrade a newer user-hook build.
-  5. Align the qlik-sense-mcp-server pin to the snapshot's .mcp.json — and
-     ONLY to that. No PyPI / GitHub-tag lookup: the pin follows whatever
-     pipeline/promote.py gated and bootstrap.py --push published, never
-     ahead of the gate (was the "hook bypasses promote.py" open issue).
+  5. Force qlik-sense-mcp-server onto the toolkit pin. Prefer the snapshot
+     `.mcp.json` pin; if that file is unpinned, take the first three digits
+     of the toolkit version (2.3.0.3 → 2.3.0). Rewrite bare
+     `qlik-sense-mcp-server` args to `==<pin>` in ~/.cursor/mcp.json and
+     plugin MCP configs, then prefetch that wheel via uvx. No PyPI/GitHub
+     tag lookup — never ahead of pipeline/promote.py.
   6. Run env-sync so a freshly Refresh'ed snapshot gets the user's JWT/URL.
 
 Codex SessionStart: `codex plugin marketplace upgrade`, then the same
@@ -44,7 +46,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-HOOK_LOGIC_VERSION = "2.3.0.3"  # схема: <пин MCP>.<итерация>, см. bootstrap.py
+HOOK_LOGIC_VERSION = "2.3.0.4"  # схема: <пин MCP>.<итерация>, см. bootstrap.py
 
 HOOKS_DIR = Path(__file__).resolve().parent
 CURSOR_HOME = Path.home() / ".cursor"
@@ -74,6 +76,7 @@ HOOK_FILES = (
 )
 
 GIT_TIMEOUT = 45
+PREFETCH_TIMEOUT = 25
 PROMPT_THROTTLE_SEC = 60
 GIT = shutil.which("git") or r"C:\Program Files\Git\cmd\git.exe"
 
@@ -225,6 +228,87 @@ def bump_pin(path: Path, new_version: str) -> bool:
         return False
     path.write_text(updated, encoding="utf-8", newline="\n")
     return True
+
+
+def mcp_pin_from_toolkit_version(version: str | None) -> str | None:
+    parsed = parse_version(version or "")
+    if parsed is None or len(parsed) < 3:
+        return None
+    return ".".join(str(part) for part in parsed[:3])
+
+
+def apply_pin_to_mcp_config(data: dict[str, Any], version: str) -> bool:
+    servers = data.get("mcpServers")
+    if not isinstance(servers, dict):
+        return False
+    pinned = f"{MCP_PACKAGE}=={version}"
+    changed = False
+    for cfg in servers.values():
+        if not isinstance(cfg, dict):
+            continue
+        args = cfg.get("args")
+        if not isinstance(args, list):
+            continue
+        new_args: list[Any] = []
+        for item in args:
+            if isinstance(item, str) and (item == MCP_PACKAGE or item.startswith(f"{MCP_PACKAGE}==")):
+                if item != pinned:
+                    changed = True
+                new_args.append(pinned)
+            else:
+                new_args.append(item)
+        cfg["args"] = new_args
+    return changed
+
+
+def apply_mcp_pin(path: Path, version: str) -> bool:
+    if not path.is_file():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return bump_pin(path, version)
+    if not isinstance(data, dict) or not apply_pin_to_mcp_config(data, version):
+        return False
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
+    return True
+
+
+def prefetch_mcp_package(version: str) -> dict[str, Any]:
+    info: dict[str, Any] = {"ok": False, "version": version, "channel": None, "error": None}
+    uvx = shutil.which("uvx")
+    uv = shutil.which("uv")
+    py_snippet = "import importlib.metadata as m; print(m.version('qlik-sense-mcp-server'))"
+    if uvx:
+        cmd = [uvx, "--from", f"{MCP_PACKAGE}=={version}", "python", "-c", py_snippet]
+        info["channel"] = "uvx"
+    elif uv:
+        cmd = [uv, "tool", "run", "--from", f"{MCP_PACKAGE}=={version}", "python", "-c", py_snippet]
+        info["channel"] = "uv"
+    else:
+        info["error"] = "uvx/uv not on PATH"
+        return info
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=PREFETCH_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        info["error"] = f"prefetch failed: {exc}"
+        return info
+    lines = [line.strip() for line in (proc.stdout or "").splitlines() if line.strip()]
+    got = lines[-1] if lines else ""
+    if proc.returncode == 0 and got == version:
+        info["ok"] = True
+        return info
+    detail = (proc.stderr or proc.stdout or f"exit {proc.returncode}").strip()[:300]
+    info["error"] = detail or f"expected {version}, got {got!r}"
+    return info
 
 
 def read_plugin_version(plugin_dir: Path) -> str | None:
@@ -515,46 +599,63 @@ def snapshot_mcp_files(snapshot: Path | None) -> list[Path]:
     return files
 
 
-def update_mcp_pin(snapshot: Path | None) -> dict[str, Any]:
-    """Align the user's qlik MCP pin to the marketplace snapshot's .mcp.json —
-    and ONLY to that. The snapshot ships whatever `pipeline/promote.py` last
-    gated and `scripts/bootstrap.py --push` published; the hook does NOT
-    consult PyPI or GitHub tags, so it can never move the pin ahead of the
-    gate (decided 31.08.2026, was the "hook bypasses promote.py" open issue).
-    An unpinned snapshot .mcp.json (bare package name) leaves the user's
-    config untouched.
-    """
+def resolve_target_pin(snapshot: Path | None) -> tuple[str | None, list[Path]]:
     snapshot_files = snapshot_mcp_files(snapshot)
+    pinned = next((current_pin(path) for path in snapshot_files if current_pin(path)), None)
+    if pinned:
+        return pinned, snapshot_files
+    toolkit_version = read_plugin_version(snapshot) if snapshot else None
+    return mcp_pin_from_toolkit_version(toolkit_version), snapshot_files
+
+
+def update_mcp_pin(snapshot: Path | None) -> dict[str, Any]:
+    """Force the user's Qlik MCP onto the toolkit pin.
+
+    Prefer the snapshot `.mcp.json` pin. If that file is unpinned (Codex
+    used to ship a bare package name), take the first three digits of the
+    toolkit version — 2.3.0.3 → 2.3.0. Never consults PyPI or GitHub tags.
+    Bare `qlik-sense-mcp-server` args are rewritten to `==<pin>` so an
+    old uvx cache cannot keep serving a previous release.
+    """
+    candidate, snapshot_files = resolve_target_pin(snapshot)
     info: dict[str, Any] = {
         "current": current_pin(USER_MCP_JSON),
-        "marketplace": next((current_pin(path) for path in snapshot_files if current_pin(path)), None),
+        "marketplace": candidate,
         "installed": None,
         "updated_files": [],
+        "prefetch": None,
         "error": None,
     }
-
-    candidate = info["marketplace"]
-    info["installed"] = candidate
     if not candidate:
         return info
 
-    targets = [USER_MCP_JSON, *snapshot_files]
-    if (LOCAL_PLUGIN_DIR / ".mcp.json").is_file():
-        targets.append(LOCAL_PLUGIN_DIR / ".mcp.json")
-    for path in targets:
-        current = current_pin(path)
-        if current == candidate:
+    targets: list[Path] = []
+    seen: set[str] = set()
+    extra = [
+        USER_MCP_JSON,
+        LOCAL_PLUGIN_DIR / ".mcp.json",
+        LOCAL_PLUGIN_DIR / "plugins" / "qlik-mcp-toolkit" / ".mcp.json",
+    ]
+    for path in [*extra, *snapshot_files]:
+        key = str(path.resolve()) if path.exists() else str(path)
+        if key in seen:
             continue
-        if current is None and path != USER_MCP_JSON:
+        seen.add(key)
+        targets.append(path)
+
+    for path in targets:
+        if not path.is_file():
             continue
         try:
-            if current is None:
-                continue
-            if bump_pin(path, candidate):
+            if apply_mcp_pin(path, candidate):
                 info["updated_files"].append(str(path))
         except OSError as exc:
             info["error"] = f"failed to write pin: {exc}"
             log(info["error"])
+    info["installed"] = candidate
+    info["prefetch"] = prefetch_mcp_package(candidate)
+    if info["prefetch"].get("error") and not info["error"]:
+        log(f"MCP prefetch: {info['prefetch']['error']}")
     return info
 
 
@@ -665,7 +766,7 @@ def align_codex() -> dict[str, Any]:
                         hooks["skipped"] = str(exc)
         else:
             hooks["skipped"] = "codex snapshot has no hooks/"
-    mcp = update_mcp_pin(None)
+    mcp = update_mcp_pin(snapshot["path"] if snapshot else None)
     creds = inject_user_qlik_env()
     result = {
         "checked_at": time.time(),
@@ -749,15 +850,21 @@ def summarize(result: dict[str, Any]) -> str:
     elif hj.get("error"):
         lines.append(f"Hooks: hooks.json reconcile error — {hj['error']}")
 
-    current = mcp.get("current") or mcp.get("marketplace") or "?"
+    current = mcp.get("current") or "?"
+    target = mcp.get("installed") or mcp.get("marketplace") or "?"
     if mcp.get("updated_files"):
         lines.append(
-            f"MCP: aligned {MCP_PACKAGE} {current} -> {mcp.get('installed')} (marketplace snapshot). Restart the qlik MCP server."
+            f"MCP: aligned {MCP_PACKAGE} {current} -> {target} (toolkit pin). Restart the qlik MCP server."
         )
     elif mcp.get("error"):
         lines.append(f"MCP: error — {mcp['error']}")
     else:
-        lines.append(f"MCP: {MCP_PACKAGE}=={current} (matches marketplace snapshot).")
+        lines.append(f"MCP: {MCP_PACKAGE}=={target} (matches toolkit pin).")
+    prefetch = mcp.get("prefetch") or {}
+    if prefetch.get("ok"):
+        lines.append(f"MCP: package {prefetch.get('version')} prefetched via {prefetch.get('channel')}.")
+    elif prefetch.get("error"):
+        lines.append(f"MCP: pin ready, package prefetch failed — {prefetch['error']}")
 
     if creds.get("error"):
         lines.append(f"Credentials: error — {creds['error']}")
