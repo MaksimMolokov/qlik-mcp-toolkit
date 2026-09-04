@@ -33,34 +33,26 @@ Agent Plugins spec — живьём проверено 19.08.2026), плюс к�
   в `/plugin` → Marketplaces) подтягивает новые версии сам — руками ничего
   обновлять не нужно. Live-подтверждено 19.08.2026 (`claude mcp list` →
   `qlik: ... - ✔ Connected`).
-- **Cursor**: плагин ставит ТОЛЬКО скиллы — с 0.13.0 он больше не несёт
-  свой `mcp.json` и не регистрирует сервер `qlik` сам (раньше это создавало
-  дублирующий сервер с плейсхолдерами `${QLIK_SERVER_URL}`/
-  `${QLIK_JWT_TOKEN}`, которые Cursor ничем не резолвит — пользователь был
-  вынужден руками находить этот сервер и второй раз вписывать туда то, что
-  у него, как правило, уже настроено). Порядок действий:
-  1. Сначала убедиться, что в Cursor уже есть рабочий MCP-сервер `qlik`
-     (Settings → MCP). Если его ещё нет — one-click:
-     [Add qlik MCP server](cursor://anysphere.cursor-deeplink/mcp/install?name=qlik&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyJxbGlrLXNlbnNlLW1jcC1zZXJ2ZXI9PTIuMy4wIiwgIi0tc3RkaW8iXSwgImVudiI6IHsiUUxJS19TRVJWRVJfVVJMIjogIllPVVJfUUxJS19TRVJWRVJfVVJMIiwgIlFMSUtfSldUX1RPS0VOIjogIllPVVJfUUxJS19KV1RfVE9LRU4ifX0=), затем вписать свои реальные
-     `QLIK_SERVER_URL`/`QLIK_JWT_TOKEN` вместо плейсхолдеров.
-  2. Только потом установить плагин со скиллами — склонировать
-     `https://github.com/MaksimMolokov/qlik-mcp-toolkit` в
-     `~/.cursor/plugins/local/qlik-mcp-toolkit`
-     (Windows: `git clone https://github.com/MaksimMolokov/qlik-mcp-toolkit "%USERPROFILE%\.cursor\plugins\local\qlik-mcp-toolkit"`),
-     перезапустить Cursor, включить плагин.
-     Дальше плагин выравнивается сам на каждый `sessionStart`: хук делает
-     `git fetch origin/main` и сравнивает с кэшем маркетплейса. Побеждает
-     большая версия (при равенстве — GitHub), даже если Cursor ещё не
-     сделал Refresh. Local-клон и устаревшие снимки в
-     `~/.cursor/plugins/cache` приводятся к победителю — так доезжают
-     и скиллы, и хуки. Пин MCP `qlik-sense-mcp-server==<первые три цифры
-     toolkit>` пишется в `~/.cursor/mcp.json` (в том числе если там был
-     голый пакет без `==версии`). После смены пина нужен рестарт MCP
-     `qlik` (выйти-зайти / Reload Window).
-  У кого сервер `qlik` уже настроен (например, тем же способом, что и для
-  Claude Code, или через `mcp-qlik`) — шаг 1 просто пропускается, плагин
-  использует то, что уже есть, без повторного ввода токена.
-  После этого агент сразу видит `qlik-mcp-analysis`,
+- **Cursor**: Git **не нужен** — ни для установки, ни для обновлений.
+  Плагин ставит скиллы; MCP-сервер `qlik` живёт отдельно в `~/.cursor/mcp.json`
+  (с 0.13.0 плагин сам его не регистрирует, чтобы не плодить дубль с
+  плейсхолдерами `${QLIK_SERVER_URL}` / `${QLIK_JWT_TOKEN}`).
+  1. Если MCP `qlik` ещё нет — one-click
+     [Add qlik MCP server](cursor://anysphere.cursor-deeplink/mcp/install?name=qlik&config=eyJjb21tYW5kIjogInV2eCIsICJhcmdzIjogWyJxbGlrLXNlbnNlLW1jcC1zZXJ2ZXI9PTIuMy4wIiwgIi0tc3RkaW8iXSwgImVudiI6IHsiUUxJS19TRVJWRVJfVVJMIjogIllPVVJfUUxJS19TRVJWRVJfVVJMIiwgIlFMSUtfSldUX1RPS0VOIjogIllPVVJfUUxJS19KV1RfVE9LRU4ifX0=),
+     затем вписать реальные `QLIK_SERVER_URL` / `QLIK_JWT_TOKEN`.
+     У кого сервер уже настроен — шаг пропускается.
+  2. Плагин со скиллами, **без Git**, в PowerShell:
+     `irm https://raw.githubusercontent.com/MaksimMolokov/qlik-mcp-toolkit/main/hooks/install-cursor.ps1 | iex`
+     Скрипт кладёт файлы в `~/.cursor/plugins/local/qlik-mcp-toolkit` (без
+     `.git` — иначе Cursor делает `spawn git` и плагин не грузится),
+     регистрирует хуки и записывает пин MCP. Полностью закрыть Cursor,
+     открыть снова, включить плагин в Settings → Plugins.
+     Дальше на каждый `sessionStart` хук сам подтягивает скиллы и MCP:
+     GitHub по HTTPS (zip), либо уже скачанный кэш маркетплейса. Git не
+     требуется. Пин `qlik-sense-mcp-server==<первые три цифры toolkit>`
+     пишется в `~/.cursor/mcp.json` (голый пакет, старый пин, или запуск
+     через `uv tool`). После смены пина — перезапуск MCP `qlik`.
+  После этого агент видит `qlik-mcp-analysis`,
   `qlik-mcp-data-access` и `qlik-mcp-session-context`.
 - **Codex CLI** (0.140.0+): `codex plugin marketplace add MaksimMolokov/qlik-mcp-toolkit` →
   `codex plugin add qlik-mcp-toolkit@qlik-mcp-toolkit-marketplace`. Ставит

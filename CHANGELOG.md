@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.3.0.6
+
+- **Git больше не нужен пользователю Cursor.** 2.3.0.5 доставлял обновления
+  через `git fetch` / local-клон. У кого Git не в PATH процесса Cursor,
+  плагин падал с `spawn git ENOENT`, хук не стартовал, MCP оставался на
+  старом `uvx`-кэше (у коллеги: toolkit 2.3.0.5 на диске, MCP 2.0.2).
+  Теперь Git опционален:
+  - origin читается по HTTPS (`plugin.json` + zipball GitHub);
+  - скиллы кладутся в `plugins/local` **без** `.git`, чтобы Cursor не
+    спавнил git;
+  - если zip недоступен — берётся уже скачанный кэш маркетплейса;
+  - пин MCP как в 2.3.0.4 плюс переписывание `command: qlik-sense-mcp-server`
+    (uv tool) → `uvx ==пин`.
+  Первый заход / ремонт без Git:
+  `irm https://raw.githubusercontent.com/MaksimMolokov/qlik-mcp-toolkit/main/hooks/install-cursor.ps1 | iex`.
+  `HOOK_LOGIC_VERSION` -> `2.3.0.6`.
+
 ## 2.3.0.5
 
 - **Хук снова сам доставляет скиллы И MCP, без Refresh маркетплейса.**
