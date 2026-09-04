@@ -48,17 +48,15 @@ Agent Plugins spec — живьём проверено 19.08.2026), плюс к�
      `~/.cursor/plugins/local/qlik-mcp-toolkit`
      (Windows: `git clone https://github.com/MaksimMolokov/qlik-mcp-toolkit "%USERPROFILE%\.cursor\plugins\local\qlik-mcp-toolkit"`),
      перезапустить Cursor, включить плагин.
-     Дальше плагин выравнивается сам: хук находит новейший снимок
-     маркетплейса в `~/.cursor/plugins/cache`, ставит local-клон на тот же
-     git-коммит (не вперёд GitHub HEAD), отдаёт `pluginPaths` на снимок
-     маркетплейса (не на старый local), копирует хуки снимка в
-     `~/.cursor/hooks`, **принудительно ставит пин MCP**
-     `qlik-sense-mcp-server==<первые три цифры toolkit>` в
-     `~/.cursor/mcp.json` (в том числе если там был голый пакет без
-     `==версии` — иначе `uvx` продолжает отдавать старый кэш) и сразу
-     вписывает личные `QLIK_SERVER_URL`/`QLIK_JWT_TOKEN` в `.mcp.json`
-     нового снимка. После смены пина нужен рестарт MCP-сервера `qlik`
-     (Reload Window / выйти-зайти достаточно, если хук уже отработал).
+     Дальше плагин выравнивается сам на каждый `sessionStart`: хук делает
+     `git fetch origin/main` и сравнивает с кэшем маркетплейса. Побеждает
+     большая версия (при равенстве — GitHub), даже если Cursor ещё не
+     сделал Refresh. Local-клон и устаревшие снимки в
+     `~/.cursor/plugins/cache` приводятся к победителю — так доезжают
+     и скиллы, и хуки. Пин MCP `qlik-sense-mcp-server==<первые три цифры
+     toolkit>` пишется в `~/.cursor/mcp.json` (в том числе если там был
+     голый пакет без `==версии`). После смены пина нужен рестарт MCP
+     `qlik` (выйти-зайти / Reload Window).
   У кого сервер `qlik` уже настроен (например, тем же способом, что и для
   Claude Code, или через `mcp-qlik`) — шаг 1 просто пропускается, плагин
   использует то, что уже есть, без повторного ввода токена.

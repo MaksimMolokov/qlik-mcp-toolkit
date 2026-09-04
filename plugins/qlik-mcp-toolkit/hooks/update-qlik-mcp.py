@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
-"""Align the user's qlik-mcp-toolkit install to the marketplace snapshot.
+"""Align the user's qlik-mcp-toolkit to the newest published toolkit.
 
-Source of truth for Cursor: the newest folder under
-~/.cursor/plugins/cache/*/qlik-mcp-toolkit/<gitRef>/.
-The hook does NOT pull GitHub HEAD past that snapshot and does NOT point
-Cursor at a stale local clone.
+Source of truth: GitHub origin/main of this repo (what pipeline/promote
+published), compared with the newest Cursor marketplace snapshot under
+~/.cursor/plugins/cache/*/qlik-mcp-toolkit/<gitRef>/. If GitHub is newer
+or equal, the hook pulls it — Cursor marketplace Refresh is not required
+for skills or the MCP pin to move.
 
 What it does on sessionStart — the ONLY Cursor startup event (`workspaceOpen`
 is not a real Cursor event; a bad key rejects the whole hooks.json, so it
 took everything down with it. Not beforeSubmitPrompt either — a per-prompt
 version check is unwanted):
-  1. Find the newest marketplace snapshot (by plugin version, then mtime).
-  2. Reset ~/.cursor/plugins/local/qlik-mcp-toolkit to THAT git ref.
-  3. Return pluginPaths to the marketplace snapshot, not to local.
-  4. Copy hook scripts from the snapshot into ~/.cursor/hooks, AND reconcile
-     our trigger entries in ~/.cursor/hooks.json against the snapshot's
-     hooks/hooks.json (so a removed event, e.g. beforeSubmitPrompt, actually
-     reaches an installed Cursor; other plugins' hooks left untouched).
+  1. git fetch origin/main (published toolkit). Compare with the newest
+     marketplace snapshot. Winner = higher plugin version; if equal, GitHub.
+     This is how a skill-only or MCP-pin-only push reaches users even when
+     Cursor has not Refresh'ed the marketplace cache.
+  2. Reset ~/.cursor/plugins/local/qlik-mcp-toolkit to the winner.
+  3. Copy hook scripts + reconcile ~/.cursor/hooks.json from the winner.
      Never downgrade a newer user-hook build.
-  5. Force qlik-sense-mcp-server onto the toolkit pin. Prefer the snapshot
-     `.mcp.json` pin; if that file is unpinned, take the first three digits
-     of the toolkit version (2.3.0.3 → 2.3.0). Rewrite bare
-     `qlik-sense-mcp-server` args to `==<pin>` in ~/.cursor/mcp.json and
-     plugin MCP configs, then prefetch that wheel via uvx. No PyPI/GitHub
-     tag lookup — never ahead of pipeline/promote.py.
-  6. Run env-sync so a freshly Refresh'ed snapshot gets the user's JWT/URL.
+  4. If marketplace snapshots are older than the winner, copy skills/rules/
+     hooks/manifests into them so the plugin Cursor already loaded matches
+     GitHub (pluginPaths is not a real sessionStart field).
+  5. Force qlik-sense-mcp-server onto the toolkit pin. Prefer `.mcp.json`;
+     if unpinned, first three digits of toolkit version (2.3.0.5 → 2.3.0).
+     Rewrite bare package args, then prefetch via uvx. No PyPI lookup.
+  6. Run env-sync so a freshly updated snapshot gets the user's JWT/URL.
 
 Codex SessionStart: `codex plugin marketplace upgrade`, then the same
 env-sync against ~/.codex caches.
@@ -46,7 +46,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-HOOK_LOGIC_VERSION = "2.3.0.4"  # схема: <пин MCP>.<итерация>, см. bootstrap.py
+HOOK_LOGIC_VERSION = "2.3.0.5"  # схема: <пин MCP>.<итерация>, см. bootstrap.py
 
 HOOKS_DIR = Path(__file__).resolve().parent
 CURSOR_HOME = Path.home() / ".cursor"
@@ -123,6 +123,16 @@ def version_ge(left: str, right: str) -> bool:
     if a is None or b is None:
         return False
     return a >= b
+
+
+def version_gt(left: str, right: str) -> bool:
+    a = parse_version(left)
+    b = parse_version(right)
+    if a is None:
+        return False
+    if b is None:
+        return True
+    return a > b
 
 
 class FileLock:
@@ -378,6 +388,120 @@ def pick_latest_install(installs: list[dict[str, Any]]) -> dict[str, Any] | None
     return max(installs, key=key)
 
 
+PLUGIN_COPY_NAMES = (
+    "skills",
+    "rules",
+    "hooks",
+    "plugins",
+    "plugin.json",
+    "README.md",
+    "CHANGELOG.md",
+    ".cursor-plugin",
+    ".claude-plugin",
+    ".mcp.json",
+    ".agents",
+)
+
+
+def origin_branch(repo: Path) -> str:
+    proc = run_git(["rev-parse", "--abbrev-ref", "origin/HEAD"], cwd=repo)
+    if proc.returncode == 0:
+        ref = proc.stdout.strip()
+        if ref.startswith("origin/"):
+            return ref.split("/", 1)[1]
+    return "main"
+
+
+def fetch_origin() -> dict[str, Any]:
+    info: dict[str, Any] = {"ref": None, "version": None, "branch": None, "error": None}
+    if not git_ok():
+        info["error"] = "git not found"
+        return info
+    if not (LOCAL_PLUGIN_DIR / ".git").is_dir():
+        err = clone_local()
+        if err:
+            info["error"] = err
+            return info
+    branch = origin_branch(LOCAL_PLUGIN_DIR)
+    fetch = run_git(["fetch", "--depth", "1", "--prune", "origin", branch], cwd=LOCAL_PLUGIN_DIR, timeout=60)
+    if fetch.returncode != 0:
+        fetch = run_git(["fetch", "--depth", "1", "--prune", "origin"], cwd=LOCAL_PLUGIN_DIR, timeout=60)
+        if fetch.returncode != 0:
+            info["error"] = f"git fetch failed: {fetch.stderr.strip()[:300]}"
+            return info
+        branch = origin_branch(LOCAL_PLUGIN_DIR)
+    info["branch"] = branch
+    rev = run_git(["rev-parse", f"origin/{branch}"], cwd=LOCAL_PLUGIN_DIR)
+    info["ref"] = rev.stdout.strip() or None
+    shown = run_git(["show", f"origin/{branch}:plugin.json"], cwd=LOCAL_PLUGIN_DIR)
+    if shown.returncode == 0:
+        try:
+            info["version"] = str(json.loads(shown.stdout).get("version") or "").strip() or None
+        except json.JSONDecodeError:
+            info["version"] = None
+    if not info["ref"]:
+        info["error"] = "origin ref missing"
+    return info
+
+
+def pick_winner(origin: dict[str, Any], snapshot: dict[str, Any] | None) -> dict[str, Any]:
+    ov = (origin or {}).get("version")
+    oref = (origin or {}).get("ref")
+    sv = snapshot.get("version") if snapshot else None
+    sref = snapshot.get("git_ref") if snapshot else None
+    if ov and oref and sv and sref:
+        if version_gt(sv, ov):
+            return {"channel": "marketplace", "ref": sref, "version": sv}
+        return {"channel": "origin", "ref": oref, "version": ov}
+    if ov and oref:
+        return {"channel": "origin", "ref": oref, "version": ov}
+    if sv and sref:
+        return {"channel": "marketplace", "ref": sref, "version": sv}
+    return {"channel": "none", "ref": None, "version": None}
+
+
+def copy_plugin_tree(src: Path, dest: Path) -> str | None:
+    if not src.is_dir() or not dest.is_dir():
+        return "src/dest missing"
+    for name in PLUGIN_COPY_NAMES:
+        source = src / name
+        target = dest / name
+        if not source.exists():
+            continue
+        try:
+            if source.is_dir():
+                if target.exists():
+                    shutil.rmtree(target)
+                shutil.copytree(source, target, ignore=shutil.ignore_patterns("__pycache__", ".git"))
+            else:
+                shutil.copy2(source, target)
+        except OSError as exc:
+            return f"copy {name} failed: {exc}"
+    return None
+
+
+def sync_stale_snapshots(local: Path, installs: list[dict[str, Any]], winner_version: str | None) -> dict[str, Any]:
+    info: dict[str, Any] = {"updated": [], "skipped": [], "error": None}
+    if not winner_version or not local.is_dir():
+        info["skipped"].append("no winner/local")
+        return info
+    for inst in installs:
+        path = inst.get("path")
+        if not isinstance(path, Path):
+            continue
+        current = inst.get("version") or ""
+        if version_ge(current, winner_version):
+            info["skipped"].append(str(path))
+            continue
+        err = copy_plugin_tree(local, path)
+        if err:
+            info["error"] = err
+            log(f"cache sync {path}: {err}")
+            continue
+        info["updated"].append(str(path))
+    return info
+
+
 def discover_codex_marketplace_installs() -> list[dict[str, Any]]:
     installs: list[dict[str, Any]] = []
     if not CODEX_CACHE_ROOT.is_dir():
@@ -436,15 +560,13 @@ def checkout_ref(repo: Path, ref: str) -> str | None:
 
 
 def checkout_origin_head(repo: Path) -> str | None:
-    fetch = run_git(["fetch", "--prune", "origin"], cwd=repo, timeout=60)
+    branch = origin_branch(repo)
+    fetch = run_git(["fetch", "--depth", "1", "--prune", "origin", branch], cwd=repo, timeout=60)
     if fetch.returncode != 0:
-        return f"git fetch failed: {fetch.stderr.strip()[:300]}"
-    proc = run_git(["rev-parse", "--abbrev-ref", "origin/HEAD"], cwd=repo)
-    branch = "main"
-    if proc.returncode == 0:
-        ref = proc.stdout.strip()
-        if ref.startswith("origin/"):
-            branch = ref.split("/", 1)[1]
+        fetch = run_git(["fetch", "--depth", "1", "--prune", "origin"], cwd=repo, timeout=60)
+        if fetch.returncode != 0:
+            return f"git fetch failed: {fetch.stderr.strip()[:300]}"
+        branch = origin_branch(repo)
     reset = run_git(["reset", "--hard", f"origin/{branch}"], cwd=repo)
     if reset.returncode != 0:
         return f"git reset failed: {reset.stderr.strip()[:300]}"
@@ -452,7 +574,7 @@ def checkout_origin_head(repo: Path) -> str | None:
     return None
 
 
-def align_local_clone(target_ref: str | None) -> dict[str, Any]:
+def align_local_clone(target_ref: str | None, target_version: str | None = None) -> dict[str, Any]:
     info: dict[str, Any] = {
         "synced": False,
         "updated": False,
@@ -480,6 +602,16 @@ def align_local_clone(target_ref: str | None) -> dict[str, Any]:
     else:
         info["version_before"] = read_plugin_version(LOCAL_PLUGIN_DIR)
         info["head_before"] = git_head(LOCAL_PLUGIN_DIR, short=False)
+        if (
+            target_version
+            and info["version_before"]
+            and version_gt(info["version_before"], target_version)
+        ):
+            info["synced"] = True
+            info["skipped"] = f"keep local {info['version_before']} (target {target_version} is older)"
+            info["version_after"] = info["version_before"]
+            info["head"] = info["head_before"]
+            return info
 
     err = checkout_ref(LOCAL_PLUGIN_DIR, target_ref) if target_ref else checkout_origin_head(LOCAL_PLUGIN_DIR)
     if err:
@@ -601,11 +733,18 @@ def snapshot_mcp_files(snapshot: Path | None) -> list[Path]:
 
 def resolve_target_pin(snapshot: Path | None) -> tuple[str | None, list[Path]]:
     snapshot_files = snapshot_mcp_files(snapshot)
-    pinned = next((current_pin(path) for path in snapshot_files if current_pin(path)), None)
+    local_files = snapshot_mcp_files(LOCAL_PLUGIN_DIR)
+    files = snapshot_files + [path for path in local_files if path not in snapshot_files]
+    pinned = next((current_pin(path) for path in files if current_pin(path)), None)
     if pinned:
-        return pinned, snapshot_files
-    toolkit_version = read_plugin_version(snapshot) if snapshot else None
-    return mcp_pin_from_toolkit_version(toolkit_version), snapshot_files
+        return pinned, files
+    for src in (snapshot, LOCAL_PLUGIN_DIR):
+        if src is None:
+            continue
+        derived = mcp_pin_from_toolkit_version(read_plugin_version(src))
+        if derived:
+            return derived, files
+    return mcp_pin_from_toolkit_version(HOOK_LOGIC_VERSION), files
 
 
 def update_mcp_pin(snapshot: Path | None) -> dict[str, Any]:
@@ -708,28 +847,54 @@ def upgrade_codex_marketplace() -> dict[str, Any]:
 
 
 def align_cursor() -> dict[str, Any]:
+    origin = fetch_origin()
     installs = discover_cursor_marketplace_installs()
     snapshot = pick_latest_install(installs)
-    target_ref = snapshot["git_ref"] if snapshot else None
-    plugin = align_local_clone(target_ref)
-    hooks = refresh_user_hooks(snapshot["path"], snapshot.get("version")) if snapshot else {"copied": [], "skipped": "no marketplace snapshot"}
-    mcp = update_mcp_pin(snapshot["path"] if snapshot else None)
+    winner = pick_winner(origin, snapshot)
+    if winner["channel"] == "marketplace" and snapshot:
+        plugin = align_local_clone(snapshot.get("git_ref"), snapshot.get("version"))
+        source_dir = snapshot["path"] if plugin.get("synced") else LOCAL_PLUGIN_DIR
+        channel = "marketplace"
+    else:
+        plugin = align_local_clone(None, winner.get("version"))
+        source_dir = LOCAL_PLUGIN_DIR
+        channel = "origin" if winner["channel"] == "origin" else ("local-git" if plugin.get("synced") else "none")
+        if origin.get("error") and not plugin.get("synced"):
+            plugin["error"] = plugin.get("error") or origin["error"]
+
+    hook_src = LOCAL_PLUGIN_DIR if plugin.get("synced") else (snapshot["path"] if snapshot else None)
+    hook_ver = (read_plugin_version(hook_src) if hook_src else None) or winner.get("version")
+    if hook_src and hook_src.is_dir():
+        hooks = refresh_user_hooks(hook_src, hook_ver)
+    else:
+        hooks = {"copied": [], "skipped": "no plugin source"}
+
+    cache = sync_stale_snapshots(LOCAL_PLUGIN_DIR, installs, hook_ver) if plugin.get("synced") else {"updated": [], "skipped": ["local clone not synced"], "error": None}
+    pin_src = LOCAL_PLUGIN_DIR if plugin.get("synced") else (snapshot["path"] if snapshot else None)
+    mcp = update_mcp_pin(pin_src)
     creds = inject_user_qlik_env()
-    active_dir = str(snapshot["path"]) if snapshot else str(LOCAL_PLUGIN_DIR)
+    active_dir = str(source_dir) if source_dir is not None else str(LOCAL_PLUGIN_DIR)
     result = {
         "checked_at": time.time(),
         "checked_at_iso": utc_now(),
         "hook_logic": HOOK_LOGIC_VERSION,
-        "channel": "marketplace" if snapshot else "local-git",
+        "channel": channel,
+        "origin": {
+            "ref": origin.get("ref"),
+            "version": origin.get("version"),
+            "error": origin.get("error"),
+        },
         "marketplace": {
             "path": str(snapshot["path"]) if snapshot else None,
             "version": snapshot.get("version") if snapshot else None,
-            "git_ref": target_ref,
+            "git_ref": snapshot.get("git_ref") if snapshot else None,
             "marketplace": snapshot.get("marketplace") if snapshot else None,
             "candidates": len(installs),
         },
+        "winner": winner,
         "plugin": plugin,
         "hooks": hooks,
+        "cache_sync": cache,
         "mcp": mcp,
         "creds": {
             "ok": creds.get("ok"),
@@ -812,8 +977,16 @@ def summarize(result: dict[str, Any]) -> str:
     creds = result.get("creds") or {}
     hooks = result.get("hooks") or {}
     channel = result.get("channel")
-    version = market.get("version") or plugin.get("version_after") or "?"
-    ref = (market.get("git_ref") or plugin.get("head") or "")[:12] or "?"
+    version = (
+        (result.get("winner") or {}).get("version")
+        or market.get("version")
+        or plugin.get("version_after")
+        or "?"
+    )
+    ref = (
+        ((result.get("winner") or {}).get("ref") or market.get("git_ref") or plugin.get("head") or "")[:12]
+        or "?"
+    )
 
     if plugin.get("error"):
         lines.append(f"Plugin: error — {plugin['error']}")
@@ -824,6 +997,11 @@ def summarize(result: dict[str, Any]) -> str:
             )
         else:
             lines.append(f"Plugin: already on marketplace {version} ({ref}).")
+    elif channel == "origin":
+        if plugin.get("updated"):
+            lines.append(f"Plugin: pulled GitHub {version} ({ref}). Reload Window if skills look stale.")
+        else:
+            lines.append(f"Plugin: already on GitHub {version} ({ref}).")
     elif channel == "codex-marketplace":
         if plugin.get("error"):
             lines.append(f"Plugin: error — {plugin['error']}")
@@ -849,6 +1027,14 @@ def summarize(result: dict[str, Any]) -> str:
         lines.append(f"Hooks: reconciled trigger registration in {len(hj['updated'])} hooks.json file(s) — Reload Window.")
     elif hj.get("error"):
         lines.append(f"Hooks: hooks.json reconcile error — {hj['error']}")
+
+    cache = result.get("cache_sync") or {}
+    if cache.get("updated"):
+        lines.append(
+            f"Skills: synced {len(cache['updated'])} stale marketplace snapshot(s) to {version}."
+        )
+    elif cache.get("error"):
+        lines.append(f"Skills: cache sync error — {cache['error']}")
 
     current = mcp.get("current") or "?"
     target = mcp.get("installed") or mcp.get("marketplace") or "?"
@@ -882,9 +1068,8 @@ def output_for_event(event: str, result: dict[str, Any]) -> dict[str, Any]:
     # NB: `workspaceOpen` is NOT a valid Cursor hook event (confirmed from
     # Cursor's own hooks log 31.08.2026 — one bad key rejects the WHOLE
     # hooks.json, so no hook ran at all). Cursor's startup event is
-    # `sessionStart`. Plugin loading + version come from Cursor's native
-    # marketplace cache, not from us — the hook only aligns the local clone,
-    # MCP pin, credentials and hook self-update.
+    # `sessionStart`. Skills come from marketplace cache — stale snapshots
+    # are overwritten from GitHub. MCP pin is written to ~/.cursor/mcp.json.
     if event == "sessionStart":
         return {"additional_context": summary}
     if event == "SessionStart":
